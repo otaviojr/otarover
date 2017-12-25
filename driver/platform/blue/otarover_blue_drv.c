@@ -14,7 +14,7 @@
 #include <linux/gpio.h>                 // Required for the GPIO functions
 #include <linux/interrupt.h>            // Required for the IRQ code
 
-#include "blue_drv.h"
+#include "otarover_blue_drv.h"
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Otavio Ribeiro");

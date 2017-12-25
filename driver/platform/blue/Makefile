@@ -1,4 +1,4 @@
-obj-m += blue_drv.o
+obj-m += otarover_blue_drv.o
 all:
 	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules
 clean:
