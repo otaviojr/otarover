@@ -13,6 +13,8 @@
 #include <linux/kernel.h>
 #include <linux/gpio.h>                 // Required for the GPIO functions
 #include <linux/interrupt.h>            // Required for the IRQ code
+#include <linux/kthread.h>		// Required for threads code
+#include <linux/delay.h>		// sleep functions
 
 #include "otarover_blue_drv.h"
 
@@ -21,8 +23,18 @@ MODULE_AUTHOR("Otavio Ribeiro");
 MODULE_DESCRIPTION("OtaRover beagle bone blue platform driver");
 MODULE_VERSION("0.1");
 
+/** GPIO2_2 - (2 * 32) + 2 **/
+static unsigned int gpio_heartbeat_led = 66;
+module_param(gpio_heartbeat_led, uint, S_IRUGO);
+MODULE_PARM_DESC(gpio_heartbeat_led, " GPIO HEART BEAT LED number (default=66)");
+
+static bool heartbeat_led_on = true;
+
 static irq_handler_t  otarover_irq_handler(unsigned int irq, void *dev_id, struct pt_regs *regs);
- 
+static int heartbeat(void* arg);
+
+static struct task_struct *task;
+
 /** @brief The LKM initialization function
  *  The static keyword restricts the visibility of the function to within this C file. The __init
  *  macro means that for a built-in driver (not a LKM) the function is only used at initialization
@@ -30,9 +42,24 @@ static irq_handler_t  otarover_irq_handler(unsigned int irq, void *dev_id, struc
  *  function sets up the GPIOs and the IRQ
  *  @return returns 0 if successful
  */
-static int __init otarover_init(void){
+static int __init otarover_init(void)
+{
    int result = 0;
-   printk(KERN_INFO "OTAROVER: Initializing the platform board  LKM\n");
+   printk(KERN_INFO "OTAROVER: Initializing the platform LKM\n");
+
+   heartbeat_led_on = true;
+   gpio_request(gpio_heartbeat_led, "sysfs");
+   /* set as output and turn it on */
+   gpio_direction_output(gpio_heartbeat_led,heartbeat_led_on);
+   /* export and do not allow direction change */
+   gpio_export(gpio_heartbeat_led, false);
+
+   task = kthread_run(heartbeat, NULL, "otarover_heartbeat");
+   if(IS_ERR(task))
+   {
+      printk(KERN_ALERT "OTAROVER: Failed to create heartbeat task");
+      return PTR_ERR(task);
+   }
 
    // Is the GPIO a valid GPIO number (e.g., the BBB has 4x32 but not all available)
    //if (!gpio_is_valid(gpioLED)){
@@ -75,6 +102,12 @@ static int __init otarover_init(void){
  *  GPIOs and display cleanup messages.
  */
 static void __exit otarover_exit(void){
+   gpio_set_value(gpio_heartbeat_led, 0);
+   gpio_unexport(gpio_heartbeat_led);
+   gpio_free(gpio_heartbeat_led);
+
+   kthread_stop(task);
+
    //printk(KERN_INFO "GPIO_TEST: The button state is currently: %d\n", gpio_get_value(gpioButton));
    //printk(KERN_INFO "GPIO_TEST: The button was pressed %d times\n", numberPresses);
    //gpio_set_value(gpioLED, 0);              // Turn the LED off, makes it clear the device was unloaded
@@ -83,7 +116,22 @@ static void __exit otarover_exit(void){
    //gpio_unexport(gpioButton);               // Unexport the Button GPIO
    //gpio_free(gpioLED);                      // Free the LED GPIO
    //gpio_free(gpioButton);                   // Free the Button GPIO
-   //printk(KERN_INFO "GPIO_TEST: Goodbye from the LKM!\n");
+   printk(KERN_INFO "OTAROVER: Goodbye from the LKM!\n");
+}
+
+static int heartbeat(void* args)
+{
+   printk(KERN_INFO "OTAROVER: Heartbeat thread has started running \n");
+   while(!kthread_should_stop())
+   {
+      set_current_state(TASK_RUNNING);
+      heartbeat_led_on = !heartbeat_led_on;
+      gpio_set_value(gpio_heartbeat_led,heartbeat_led_on);
+      set_current_state(TASK_INTERRUPTIBLE);
+      msleep(1000);
+   }
+   printk(KERN_INFO "OTAROVER: Heartbeat thread has finished \n");
+   return 0;
 }
  
 /** @brief The GPIO IRQ Handler function
