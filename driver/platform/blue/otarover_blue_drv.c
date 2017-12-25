@@ -15,6 +15,7 @@
 #include <linux/interrupt.h>            // Required for the IRQ code
 #include <linux/kthread.h>		// Required for threads code
 #include <linux/delay.h>		// sleep functions
+#include <linux/pwm.h>			// Required for PWM code
 
 #include "otarover_blue_drv.h"
 
@@ -36,10 +37,7 @@ static int heartbeat(void* arg);
 static struct task_struct *task;
 
 /** @brief The LKM initialization function
- *  The static keyword restricts the visibility of the function to within this C file. The __init
- *  macro means that for a built-in driver (not a LKM) the function is only used at initialization
- *  time and that it can be discarded and its memory freed up after that point. In this example this
- *  function sets up the GPIOs and the IRQ
+ *  This function sets up the GPIOs and the IRQ
  *  @return returns 0 if successful
  */
 static int __init otarover_init(void)
@@ -54,12 +52,15 @@ static int __init otarover_init(void)
    /* export and do not allow direction change */
    gpio_export(gpio_heartbeat_led, false);
 
+   /* hearteat task */
    task = kthread_run(heartbeat, NULL, "otarover_heartbeat");
    if(IS_ERR(task))
    {
       printk(KERN_ALERT "OTAROVER: Failed to create heartbeat task");
       return PTR_ERR(task);
    }
+
+   pwmchip_find_by_name("");
 
    // Is the GPIO a valid GPIO number (e.g., the BBB has 4x32 but not all available)
    //if (!gpio_is_valid(gpioLED)){

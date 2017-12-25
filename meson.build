@@ -1,21 +1,15 @@
 project('otarover', ['c'],
   version: '0.1',
   license: [
-        'GPL-2.0',
+        'GPL-3.0',
   ],
   default_options : [ 'warning_level=1',
                       'buildtype=debugoptimized' ])
 
 cc = meson.get_compiler('c')
 
-sources = [
-		'src/main.c'
-          ]
-
-deps = 	[
-	]
-
 cdata = configuration_data()
+
 check_headers = [
   ['HAVE_INTTYPES_H', 'inttypes.h'],
 ]
@@ -41,6 +35,9 @@ foreach f : check_functions
   endif
 endforeach
 
+platform = get_option('platform')
+
+cdata.set('PLATFORM', '"@0@"'.format(platform))
 cdata.set('PREFIX', '"@0@"'.format(get_option('prefix')))
 cdata.set('LIBDIR', '"@0@"'.format(get_option('libdir')))
 cdata.set('DATADIR', '"@0@"'.format(get_option('datadir')))
@@ -49,6 +46,28 @@ configure_file(output : 'config.h', configuration : cdata)
 
 compiler = meson.get_compiler('c')
 
-exe = executable('otarover', sources, dependencies : deps, install : true)
+platform_src = [
+                ]
+
+if platform == 'blue'
+  message('Platform ' + platform + ' selected')
+  platform_src = [
+		     'src/platform/blue/platform_blue.c'
+                   ]
+else
+  error('No platform selected. Use -Dplatform=<platform> to set one')
+endif
+
+deps = [
+       ]
+
+sources = [
+		'src/main.c',
+                platform_src
+          ]
+
+incdir = include_directories('inc')
+
+exe = executable('otarover', sources, dependencies : deps, include_directories: incdir, install : true)
 
 test('Check Generated Application', exe)
