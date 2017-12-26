@@ -60,7 +60,9 @@ static int __init otarover_init(void)
       return PTR_ERR(task);
    }
 
-   pwmchip_find_by_name("");
+   volatile void* ctrl_mod_addr = 0x44E10000;
+   volatile unsigned int* addr = ctrl_mod_addr + 0x800;
+   *addr = 0x6;
 
    // Is the GPIO a valid GPIO number (e.g., the BBB has 4x32 but not all available)
    //if (!gpio_is_valid(gpioLED)){
