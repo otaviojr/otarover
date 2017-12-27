@@ -43,6 +43,8 @@ static struct task_struct *task;
 static int __init otarover_init(void)
 {
    int result = 0;
+   void __iomem *io;
+
    printk(KERN_INFO "OTAROVER: Initializing the platform LKM\n");
 
    heartbeat_led_on = true;
@@ -52,7 +54,7 @@ static int __init otarover_init(void)
    /* export and do not allow direction change */
    gpio_export(gpio_heartbeat_led, false);
 
-   /* hearteat task */
+   /* heartbeat task */
    task = kthread_run(heartbeat, NULL, "otarover_heartbeat");
    if(IS_ERR(task))
    {
@@ -60,9 +62,44 @@ static int __init otarover_init(void)
       return PTR_ERR(task);
    }
 
-   volatile void* ctrl_mod_addr = 0x44E10000;
-   volatile unsigned int* addr = ctrl_mod_addr + 0x800;
-   *addr = 0x6;
+
+   /* PINMUX settings */
+   /* set PWM1A - GPIO1_18 as pwm mode */
+   io = ioremap(0x44E10000, 128*1024);
+   writel(0x16,io + 0x848);
+   /* set PWM1B - GPIO1_19 as pwm mode */
+   writel(0x16,io + 0x84c);
+   /* enable PWMSS1 - pwmss_ctrl */
+   writel(0x02, io + 0x664);
+
+   /*PWM1 subsystem clock*/
+   io = ioremap(0x48302000,4*1024);
+   writel(0x111,io + 0x8);
+
+   /* PWM1A/B config */
+   io = ioremap(0x48302200,4*1024);
+   /* TBCTL - 0b1100100000111100*/
+   writew(0xC8C3,io + 0x00);
+   /* TBPRD - 0x3FF - 1023 */
+   writew(0x3FF, io + 0x0A);
+   /* TBPHS - 0x00 */
+   writew(0x00, io + 0x06);
+   /* TBCTN - 0x00 */
+   writew(0x00, io + 0x08);
+   /* COMPA - 0x12c - 50% */
+   writew(0x1FF, io + 0x12);
+   /* COMPB - 0x12c - 50% */
+   writew(0x1FF, io + 0x14);
+   /* CMPCTL - 0b 11010 */
+   writew(0x14, io + 0x0E);
+   /* AQCTLA - 0b000010100001 */
+   writew(0xA1, io + 0x16);
+   /* AQCTLB - 0b101000000001 */
+   writew(0xA01, io + 0x18);
+
+   /* enable PWM1 - CM_PER */
+   io = ioremap(0x44E00000,1024);
+   writel(0x2,io + 0xCC);
 
    // Is the GPIO a valid GPIO number (e.g., the BBB has 4x32 but not all available)
    //if (!gpio_is_valid(gpioLED)){
