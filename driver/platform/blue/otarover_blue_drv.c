@@ -62,24 +62,39 @@ static int __init otarover_init(void)
       return PTR_ERR(task);
    }
 
+   /* motor signals to pwm test */
+   gpio_request(20,"sysfs");
+   gpio_direction_output(20,true);
+   gpio_export(20, false);
+   gpio_set_value(20,true);
+
+   gpio_request(64,"sysfs");
+   gpio_direction_output(64,true);
+   gpio_export(64, false);
+   gpio_set_value(64,true);
+
+   gpio_request(31,"sysfs");
+   gpio_direction_output(31,false);
+   gpio_export(31, false);
+   gpio_set_value(31,false);
 
    /* PINMUX settings */
-   /* set PWM1A - GPIO1_18 as pwm mode */
+   /* set PWM1A - GPMC_A2 as pwm mode */
    io = ioremap(0x44E10000, 128*1024);
    writel(0x16,io + 0x848);
-   /* set PWM1B - GPIO1_19 as pwm mode */
+   /* set PWM1B - GPMC_A3 as pwm mode */
    writel(0x16,io + 0x84c);
    /* enable PWMSS1 - pwmss_ctrl */
    writel(0x02, io + 0x664);
 
-   /*PWM1 subsystem clock*/
+   /*PWM1 subsystem clock - CLKCONFIG*/
    io = ioremap(0x48302000,4*1024);
    writel(0x111,io + 0x8);
 
    /* PWM1A/B config */
    io = ioremap(0x48302200,4*1024);
-   /* TBCTL - 0b1100100000111100*/
-   writew(0xC8C3,io + 0x00);
+   /* TBCTL - 0b1100100000110000*/
+   writew(0xC830,io + 0x00);
    /* TBPRD - 0x3FF - 1023 */
    writew(0x3FF, io + 0x0A);
    /* TBPHS - 0x00 */
@@ -90,12 +105,12 @@ static int __init otarover_init(void)
    writew(0x1FF, io + 0x12);
    /* COMPB - 0x12c - 50% */
    writew(0x1FF, io + 0x14);
-   /* CMPCTL - 0b 11010 */
-   writew(0x14, io + 0x0E);
-   /* AQCTLA - 0b000010100001 */
-   writew(0xA1, io + 0x16);
-   /* AQCTLB - 0b101000000001 */
-   writew(0xA01, io + 0x18);
+   /* CMPCTL - 0b1011010 */
+   writew(0x5A, io + 0x0E);
+   /* AQCTLA - 0b000000100001 */
+   writew(0x21, io + 0x16);
+   /* AQCTLB - 0b001000000001 */
+   writew(0x201, io + 0x18);
 
    /* enable PWM1 - CM_PER */
    io = ioremap(0x44E00000,1024);
@@ -145,6 +160,18 @@ static void __exit otarover_exit(void){
    gpio_set_value(gpio_heartbeat_led, 0);
    gpio_unexport(gpio_heartbeat_led);
    gpio_free(gpio_heartbeat_led);
+
+   gpio_set_value(20,0);
+   gpio_unexport(20);
+   gpio_free(20);
+
+   gpio_set_value(31,0);
+   gpio_unexport(31);
+   gpio_free(31);
+
+   gpio_set_value(64,0);
+   gpio_unexport(64);
+   gpio_free(64);
 
    kthread_stop(task);
 
