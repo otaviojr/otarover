@@ -78,6 +78,17 @@ static int __init otarover_init(void)
    gpio_export(31, false);
    gpio_set_value(31,false);
 
+   gpio_request(48,"sysfs");
+   gpio_direction_output(48,true);
+   gpio_export(48, false);
+   gpio_set_value(48,true);
+
+   gpio_request(10,"sysfs");
+   gpio_direction_output(10,false);
+   gpio_export(10, false);
+   gpio_set_value(10,false);
+
+
    /* PINMUX settings */
    /* set PWM1A - GPMC_A2 as pwm mode */
    io = ioremap(0x44E10000, 128*1024);
@@ -102,15 +113,15 @@ static int __init otarover_init(void)
    /* TBCTN - 0x00 */
    writew(0x00, io + 0x08);
    /* COMPA - 0x12c - 50% */
-   writew(0x1FF, io + 0x12);
+   writew(0xFF, io + 0x12);
    /* COMPB - 0x12c - 50% */
-   writew(0x1FF, io + 0x14);
+   writew(0xFF, io + 0x14);
    /* CMPCTL - 0b1011010 */
    writew(0x5A, io + 0x0E);
-   /* AQCTLA - 0b000000100001 */
-   writew(0x21, io + 0x16);
-   /* AQCTLB - 0b001000000001 */
-   writew(0x201, io + 0x18);
+   /* AQCTLA - 0b000000010010 */
+   writew(0x12, io + 0x16);
+   /* AQCTLB - 0b000100000010 */
+   writew(0x102, io + 0x18);
 
    /* enable PWM1 - CM_PER */
    io = ioremap(0x44E00000,1024);
@@ -172,6 +183,14 @@ static void __exit otarover_exit(void){
    gpio_set_value(64,0);
    gpio_unexport(64);
    gpio_free(64);
+
+   gpio_set_value(10,0);
+   gpio_unexport(10);
+   gpio_free(10);
+
+   gpio_set_value(48,0);
+   gpio_unexport(48);
+   gpio_free(48);
 
    kthread_stop(task);
 
