@@ -14,6 +14,7 @@
 #include <linux/gpio.h>                 // Required for the GPIO functions
 #include <linux/interrupt.h>            // Required for the IRQ code
 #include <linux/kthread.h>		// Required for threads code
+
 #include <linux/delay.h>		// sleep functions
 #include <linux/pwm.h>			// Required for PWM code
 
@@ -27,14 +28,55 @@ MODULE_VERSION("0.1");
 /** GPIO2_2 - (2 * 32) + 2 **/
 static unsigned int gpio_heartbeat_led = 66;
 module_param(gpio_heartbeat_led, uint, S_IRUGO);
-MODULE_PARM_DESC(gpio_heartbeat_led, " GPIO HEART BEAT LED number (default=66)");
+MODULE_PARM_DESC(gpio_heartbeat_led, " GPIO HEART BEAT LED PIN NUMBER (default=66)");
 
+/** TODO: export all pins as module parameters */
+
+/* LED status*/
 static bool heartbeat_led_on = true;
 
-static irq_handler_t  otarover_irq_handler(unsigned int irq, void *dev_id, struct pt_regs *regs);
+/* Heartbeat task */
+static struct task_struct *task;
+
+/* functions declaration */
+static irq_handler_t otarover_irq_handler(unsigned int irq, void *dev_id, struct pt_regs *regs);
 static int heartbeat(void* arg);
 
-static struct task_struct *task;
+static ssize_t m1_show_speed(struct device *dev, struct device_attribute *attr, char *buf);
+static ssize_t m1_store_speed(struct device *dev, struct device_attribute *attr, const char *buf, size_t count);
+static ssize_t m2_show_speed(struct device *dev, struct device_attribute *attr, char *buf);
+static ssize_t m2_store_speed(struct device *dev, struct device_attribute *attr, const char *buf, size_t count);
+
+static ssize_t m1_show_direction(struct device *dev, struct device_attribute *attr, char *buf);
+static ssize_t m1_store_direction(struct device *dev, struct device_attribute *attr, const char *buf, size_t count);
+static ssize_t m2_show_direction(struct device *dev, struct device_attribute *attr, char *buf);
+static ssize_t m2_store_direction(struct device *dev, struct device_attribute *attr, const char *buf, size_t count);
+
+/** SYSFS ATTRIBUTES */
+
+static DEVICE_ATTR(m1_speed,
+                   0664,
+                   m1_show_speed,
+                   m1_store_speed);
+
+static DEVICE_ATTR(m2_speed,
+                   0664,
+                   m2_show_speed,
+                   m2_store_speed);
+
+static DEVICE_ATTR(m1_direction,
+                   0664,
+                   m1_show_direction,
+                   m1_store_direction);
+
+static DEVICE_ATTR(m2_direction,
+                   0664,
+                   m2_show_direction,
+                   m2_store_direction);
+
+static struct class *device_class;
+static struct device *motors_device_object;
+static struct device *battery_device_object;
 
 /** @brief The LKM initialization function
  *  This function sets up the GPIOs and the IRQ
@@ -47,6 +89,12 @@ static int __init otarover_init(void)
 
    printk(KERN_INFO "OTAROVER: Initializing the platform LKM\n");
 
+   if(!gpio_is_valid(gpio_heartbeat_led))
+   {
+      printk(KERN_ALERT "OTAROVER: Invalid heartbeat led pin");
+      return -ENODEV;
+   }
+ 
    heartbeat_led_on = true;
    gpio_request(gpio_heartbeat_led, "sysfs");
    /* set as output and turn it on */
@@ -61,6 +109,56 @@ static int __init otarover_init(void)
       printk(KERN_ALERT "OTAROVER: Failed to create heartbeat task");
       return PTR_ERR(task);
    }
+
+   device_class = class_create(THIS_MODULE, "otarover");
+   if(IS_ERR(device_class))
+   {
+      printk(KERN_ALERT "OTAROVER: Failed to create sysfs class");
+      return PTR_ERR(device_class);
+   }
+
+   motors_device_object = device_create(device_class, NULL, 0, NULL, "motors");
+   if(IS_ERR(motors_device_object))
+   {
+      printk(KERN_ALERT "OTAROVER: Failed to create sysfs device");
+      return PTR_ERR(motors_device_object);
+   }
+
+   battery_device_object = device_create(device_class, NULL, 0, NULL, "battery");
+   if(IS_ERR(battery_device_object))
+   {
+      printk(KERN_ALERT "OTAROVER: Failed to create sysfs device");
+      return PTR_ERR(battery_device_object);
+   }
+
+   result = device_create_file(motors_device_object, &dev_attr_m1_speed);
+   if(result < 0)
+   {
+      printk(KERN_ALERT "OTAROVER: Failed creating m1_speed sysfs endpoint");
+      return result;
+   }
+
+   result = device_create_file(motors_device_object, &dev_attr_m2_speed);
+   if(result < 0)
+   {
+      printk(KERN_ALERT "OTAROVER: Failed creating m2_speed sysfs endpint");
+      return result;
+   }
+
+   result = device_create_file(motors_device_object, &dev_attr_m1_direction);
+   if(result < 0)
+   {
+      printk(KERN_ALERT "OTAROVER: Failed creating m1_direction sysfs endpoint");
+      return result;
+   }
+
+   result = device_create_file(motors_device_object, &dev_attr_m2_direction);
+   if(result < 0)
+   {
+      printk(KERN_ALERT "OTAROVER: Failed creating m2_direction sysfs endpint");
+      return result;
+   }
+
 
    /* motor signals to pwm test */
    gpio_request(20,"sysfs");
@@ -87,7 +185,6 @@ static int __init otarover_init(void)
    gpio_direction_output(10,false);
    gpio_export(10, false);
    gpio_set_value(10,false);
-
 
    /* PINMUX settings */
    /* set PWM1A - GPMC_A2 as pwm mode */
@@ -127,26 +224,6 @@ static int __init otarover_init(void)
    io = ioremap(0x44E00000,1024);
    writel(0x2,io + 0xCC);
 
-   // Is the GPIO a valid GPIO number (e.g., the BBB has 4x32 but not all available)
-   //if (!gpio_is_valid(gpioLED)){
-   //   printk(KERN_INFO "GPIO_TEST: invalid LED GPIO\n");
-   //   return -ENODEV;
-   //}
-   // Going to set up the LED. It is a GPIO in output mode and will be on by default
-   //ledOn = true;
-   //gpio_request(gpioLED, "sysfs");          // gpioLED is hardcoded to 49, request it
-   //gpio_direction_output(gpioLED, ledOn);   // Set the gpio to be in output mode and on
-   // gpio_set_value(gpioLED, ledOn);          // Not required as set by line above (here for reference)
-   //gpio_export(gpioLED, false);             // Causes gpio49 to appear in /sys/class/gpio
-                     // the bool argument prevents the direction from being changed
-   //gpio_request(gpioButton, "sysfs");       // Set up the gpioButton
-   //gpio_direction_input(gpioButton);        // Set the button GPIO to be an input
-   //gpio_set_debounce(gpioButton, 200);      // Debounce the button with a delay of 200ms
-   //gpio_export(gpioButton, false);          // Causes gpio115 to appear in /sys/class/gpio
-                     // the bool argument prevents the direction from being changed
-   // Perform a quick test to see that the button is working as expected on LKM load
-   //printk(KERN_INFO "GPIO_TEST: The button state is currently: %d\n", gpio_get_value(gpioButton));
- 
    // GPIO numbers and IRQ numbers are not the same! This function performs the mapping for us
    //irqNumber = gpio_to_irq(gpioButton);
    //printk(KERN_INFO "GPIO_TEST: The button is mapped to IRQ: %d\n", irqNumber);
@@ -159,6 +236,7 @@ static int __init otarover_init(void)
    //                     NULL);                 // The *dev_id for shared interrupt lines, NULL is okay
  
    //printk(KERN_INFO "GPIO_TEST: The interrupt request result is: %d\n", result);
+
    return result;
 }
  
@@ -168,9 +246,18 @@ static int __init otarover_init(void)
  *  GPIOs and display cleanup messages.
  */
 static void __exit otarover_exit(void){
+
+   /* remover sysfs interface */
+   device_remove_file(motors_device_object, &dev_attr_m1_speed);
+   device_remove_file(motors_device_object, &dev_attr_m2_speed);
+   device_destroy(device_class, 0);
+   class_destroy(device_class);
+
+   /* stop heartbeat led */
    gpio_set_value(gpio_heartbeat_led, 0);
    gpio_unexport(gpio_heartbeat_led);
    gpio_free(gpio_heartbeat_led);
+   kthread_stop(task);
 
    gpio_set_value(20,0);
    gpio_unexport(20);
@@ -192,16 +279,7 @@ static void __exit otarover_exit(void){
    gpio_unexport(48);
    gpio_free(48);
 
-   kthread_stop(task);
-
-   //printk(KERN_INFO "GPIO_TEST: The button state is currently: %d\n", gpio_get_value(gpioButton));
-   //printk(KERN_INFO "GPIO_TEST: The button was pressed %d times\n", numberPresses);
-   //gpio_set_value(gpioLED, 0);              // Turn the LED off, makes it clear the device was unloaded
-   //gpio_unexport(gpioLED);                  // Unexport the LED GPIO
    //free_irq(irqNumber, NULL);               // Free the IRQ number, no *dev_id required in this case
-   //gpio_unexport(gpioButton);               // Unexport the Button GPIO
-   //gpio_free(gpioLED);                      // Free the LED GPIO
-   //gpio_free(gpioButton);                   // Free the Button GPIO
    printk(KERN_INFO "OTAROVER: Goodbye from the LKM!\n");
 }
 
@@ -237,6 +315,58 @@ static irq_handler_t otarover_irq_handler(unsigned int irq, void *dev_id, struct
    //numberPresses++;                         // Global counter, will be outputted when the module is unloaded
    return (irq_handler_t) IRQ_HANDLED;      // Announce that the IRQ has been handled correctly
 }
+
+/* M1 attributes functions */
+static ssize_t m1_show_speed(struct device *dev, struct device_attribute *attr,
+                      char *buf)
+{
+        return sprintf(buf, "m1_show_speed\n");
+}
+
+static ssize_t m1_store_speed(struct device *dev, struct device_attribute *attr,
+                      const char *buf, size_t count)
+{
+        return count;
+}
+
+static ssize_t m1_show_direction(struct device *dev, struct device_attribute *attr,
+                      char *buf)
+{
+        return sprintf(buf, "m1_show_direction\n");
+}
+
+static ssize_t m1_store_direction(struct device *dev, struct device_attribute *attr,
+                      const char *buf, size_t count)
+{
+        return count;
+}
+
+
+/* M2 attributes functions */
+static ssize_t m2_show_speed(struct device *dev, struct device_attribute *attr,
+                      char *buf)
+{
+        return sprintf(buf, "m2_show_speed\n");
+}
+
+static ssize_t m2_store_speed(struct device *dev, struct device_attribute *attr,
+                      const char *buf, size_t count)
+{
+        return count;
+}
+
+static ssize_t m2_show_direction(struct device *dev, struct device_attribute *attr,
+                      char *buf)
+{
+        return sprintf(buf, "m1_show_direction\n");
+}
+
+static ssize_t m2_store_direction(struct device *dev, struct device_attribute *attr,
+                      const char *buf, size_t count)
+{
+        return count;
+}
+
  
 /// This next calls are  mandatory -- they identify the initialization function
 /// and the cleanup function (as above).
