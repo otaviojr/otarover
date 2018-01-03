@@ -58,8 +58,6 @@ static unsigned int gpio_m2_dir_pin2 = 10;
 module_param(gpio_m2_dir_pin2, uint, S_IRUGO);
 MODULE_PARM_DESC(gpio_m2_dir_pin2, "M2 DIRECTION PIN2 (default=10)");
 
-/** TODO: export all pins as module parameters */
-
 /* LED status*/
 static bool heartbeat_led_on = true;
 
@@ -155,7 +153,9 @@ static int __init otarover_init(void)
       printk(KERN_ALERT "OTAROVER: Invalid heartbeat led pin");
       return -ENODEV;
    }
- 
+
+   /* TODO: validate all pins */
+
    heartbeat_led_on = true;
    gpio_request(gpio_heartbeat_led, "sysfs");
    /* set as output and turn it on */
@@ -314,11 +314,11 @@ static int __init otarover_init(void)
    iounmap(io);
 
    // GPIO numbers and IRQ numbers are not the same! This function performs the mapping for us
-   //irqNumber = gpio_to_irq(gpioButton);
-   //printk(KERN_INFO "GPIO_TEST: The button is mapped to IRQ: %d\n", irqNumber);
+   // irqNumber = gpio_to_irq(gpioButton);
+   // printk(KERN_INFO "GPIO_TEST: The button is mapped to IRQ: %d\n", irqNumber);
 
    // This next call requests an interrupt line
-   //result = request_irq(irqNumber,             // The interrupt number requested
+   // result = request_irq(irqNumber,             // The interrupt number requested
    //                      (irq_handler_t) ebbgpio_irq_handler, // The pointer to the handler function below
    //                     IRQF_TRIGGER_RISING,   // Interrupt on rising edge (button press, not release)
    //                     "ebb_gpio_handler",    // Used in /proc/interrupts to identify the owner
@@ -349,12 +349,6 @@ static void __exit otarover_exit(void){
    device_destroy(device_class, 0);
    class_destroy(device_class);
 
-   /* stop heartbeat led */
-   gpio_set_value(gpio_heartbeat_led, 0);
-   gpio_unexport(gpio_heartbeat_led);
-   gpio_free(gpio_heartbeat_led);
-   kthread_stop(task);
-
    gpio_set_value(gpio_stby_pin,0);
    gpio_unexport(gpio_stby_pin);
    gpio_free(gpio_stby_pin);
@@ -374,6 +368,12 @@ static void __exit otarover_exit(void){
    gpio_set_value(gpio_m2_dir_pin2,0);
    gpio_unexport(gpio_m2_dir_pin2);
    gpio_free(gpio_m2_dir_pin2);
+
+   /* stop heartbeat led */
+   gpio_set_value(gpio_heartbeat_led, 0);
+   gpio_unexport(gpio_heartbeat_led);
+   gpio_free(gpio_heartbeat_led);
+   kthread_stop(task);
 
    //free_irq(irqNumber, NULL);               // Free the IRQ number, no *dev_id required in this case
    printk(KERN_INFO "OTAROVER: Goodbye from the LKM!\n");
