@@ -177,9 +177,3 @@ int otarover_set_dc_motors_speed(board_config_t* config, int motor)
 
   return 0;
 }
-
-//EXPORT_SYMBOL(otarover_configure_board);
-//EXPORT_SYMBOL(otarover_release_board);
-//EXPORT_SYMBOL(otarover_set_dc_motors_enable);
-//EXPORT_SYMBOL(otarover_set_dc_motors_dir);
-//EXPORT_SYMBOL(otarover_set_dc_motors_speed);

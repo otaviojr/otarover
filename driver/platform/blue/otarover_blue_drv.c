@@ -381,8 +381,8 @@ static ssize_t m_show_enable(struct device *dev, struct device_attribute *attr,
 static ssize_t m_store_enable(struct device * dev, struct device_attribute *attr,
                       const char *buf, size_t count)
 {
-	//TODO: enable and disable PWM here. Now, just the stby pin is used
-	if(dev->class == device_class){
+  //TODO: enable and disable PWM here. Now, just the stby pin is used
+  if(dev->class == device_class){
     printk("m_store_enable with value %s of size %d\n",buf,count);
     if(strncmp(buf,"true",(count > 3 ? 3 : count)) == 0){
       board_config.state.dc_motors_enable = true;
@@ -459,7 +459,7 @@ static ssize_t m1_store_config(struct device *dev, struct device_attribute *attr
   } else {
     return -EINVAL;
   }
-  
+
   return count;
 }
 
