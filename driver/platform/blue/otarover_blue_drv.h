@@ -1,5 +1,5 @@
 /**
- * @file   blue_drv.h
+ * @file   otarover_blue_drv.h
  * @author Otavio Ribeiro
  * @date   24 Dec 2017
  * @brief  A kernel module for controlling beaglebone blue board
@@ -8,3 +8,5 @@
  *
  */
 
+#define FIRST_MINOR       1
+#define MINOR_CNT         0
