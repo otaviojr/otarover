@@ -609,12 +609,18 @@ static long dev_ioctl(struct file* filep, unsigned int cmd, unsigned long arg)
       break;
     case OTAROVER_IOCTL_SET_M1_CONFIG:
       ret =  get_user(board_config.state.m1_config, (long*)arg);
+      if(ret == 0){
+        otarover_set_dc_motors_dir(&board_config, 1);
+      }
       break;
     case OTAROVER_IOCTL_GET_M1_CONFIG:
       ret = put_user(board_config.state.m1_config,(long*)arg);
       break;
     case OTAROVER_IOCTL_SET_M2_CONFIG:
       ret =  get_user(board_config.state.m2_config, (long*)arg);
+      if(ret == 0){
+        otarover_set_dc_motors_dir(&board_config, 2);
+      }
       break;
     case OTAROVER_IOCTL_GET_M2_CONFIG:
       ret = put_user(board_config.state.m2_config,(long*)arg);

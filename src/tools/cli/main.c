@@ -124,7 +124,6 @@ int main(int argc, char** argv)
             if(ret != 0){
               printf ("error setting option %s with value %s\n", long_options[opt_index].name, optarg);
             }
-            //TODO: call direction again with the same value to really change direction
           }
         }
         break;
@@ -176,9 +175,8 @@ int main(int argc, char** argv)
           } else {
             printf ("invalid argument to option %s\n", long_options[opt_index].name);
           }
-          
+
           if(val != -2){
-            //TODO: call direction again with the same value to really change direction
             ret = ioctl(dev_file, OTAROVER_IOCTL_SET_M2_CONFIG,&val);
             if(ret != 0){
               printf ("error setting option %s with value %s\n", long_options[opt_index].name, optarg);
