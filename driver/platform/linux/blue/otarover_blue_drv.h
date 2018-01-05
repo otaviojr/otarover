@@ -9,4 +9,4 @@
  */
 
 #define FIRST_MINOR       1
-#define MINOR_CNT         0
+#define MINOR_CNT         3

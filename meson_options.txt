@@ -1,1 +1,2 @@
 option('platform', type : 'combo', choices : ['none','blue'], value : 'none')
+option('system', type : 'combo', choices : ['none','linux','minix3'], value : 'none')

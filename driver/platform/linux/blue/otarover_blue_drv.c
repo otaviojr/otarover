@@ -22,7 +22,7 @@
 
 #include "otarover_blue_drv.h"
 #include "otarover_blue_io.h"
-#include "otarover_blue_ioctl.h"
+#include "otarover_ioctl.h"
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Otavio Ribeiro");
@@ -267,7 +267,7 @@ static int __init otarover_init(void)
    }
 
    /* character device interdace */
-   result = alloc_chrdev_region(&dev, FIRST_MINOR, MINOR_CNT, "otarover_ioctl");
+   result = alloc_chrdev_region(&dev, FIRST_MINOR, MINOR_CNT, "otarover");
    if(result < 0)
    {
      printk(KERN_ALERT "OTAROVER: Failed registering region");
@@ -534,11 +534,13 @@ static ssize_t m2_store_config(struct device *dev, struct device_attribute *attr
 /* char device interface implementation */
 static int dev_open(struct inode* inodep, struct file* filep)
 {
+  printk(KERN_INFO "OTAROVER: dev file opened \n");
   return 0;
 }
 
 static int dev_release(struct inode* inodep, struct file* filep)
 {
+  printk(KERN_INFO "OTAROVER: dev file closed \n");
   return 0;
 }
 

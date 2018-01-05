@@ -35,9 +35,12 @@ foreach f : check_functions
   endif
 endforeach
 
+
 platform = get_option('platform')
+system = get_option('system')
 
 cdata.set('PLATFORM', '"@0@"'.format(platform))
+cdata.set('SYSTEM', '"@0@"'.format(system))
 cdata.set('PREFIX', '"@0@"'.format(get_option('prefix')))
 cdata.set('LIBDIR', '"@0@"'.format(get_option('libdir')))
 cdata.set('DATADIR', '"@0@"'.format(get_option('datadir')))
@@ -46,28 +49,36 @@ configure_file(output : 'config.h', configuration : cdata)
 
 compiler = meson.get_compiler('c')
 
-platform_src = [
-                ]
+otarover_platform_src = [
+]
 
-if platform == 'blue'
+if platform == 'blue' and system == 'linux'
   message('Platform ' + platform + ' selected')
-  platform_src = [
-		     'src/platform/blue/platform_blue.c'
-                   ]
+  otarover_platform_src = [
+    'src/platform/linux/blue/platform_linux_blue.c'
+  ]
 else
-  error('No platform selected. Use -Dplatform=<platform> to set one')
+  error('No platform/system selected. Use -Dplatform=<platform> -Dsystem=<system> to set one')
 endif
 
-deps = [
-       ]
+otarover_deps = [
+]
 
-sources = [
-		'src/main.c',
-                platform_src
-          ]
+otarover_sources = [
+  'src/main.c',
+  otarover_platform_src
+]
 
 incdir = include_directories('inc')
 
-exe = executable('otarover', sources, dependencies : deps, include_directories: incdir, install : true)
+otarover_cli_sources = [
+  'src/tools/cli/main.c'
+]
 
+otarover_cli_deps = [
+]
+
+exe = executable('otaroverctl', otarover_cli_sources, dependencies : otarover_cli_deps, include_directories: incdir, install : true)
+test('Check Generated Application', exe)
+exe = executable('otarover', otarover_sources, dependencies : otarover_deps, include_directories: incdir, install : true)
 test('Check Generated Application', exe)
