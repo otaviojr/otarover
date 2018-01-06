@@ -2,18 +2,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <fcntl.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <sys/ioctl.h>
 #include <getopt.h>
 
-#include "platform/linux/otarover_ioctl.h"
-
-#define DEVICE_FILE_NAME "/dev/otarover"
-
-//TODO: do not use ioct directly, instead, weshould use the otaroverlib to
-//      control things, as soon as it is ready
+#include "otaroverlib.h"
 
 static struct option long_options[] =
 {
@@ -31,12 +22,12 @@ static struct option long_options[] =
 int main(int argc, char** argv)
 {
   long val;
-  int dev_file, ret, opt, opt_index;
+  int ret, opt, opt_index;
   char* pend;
 
-  dev_file = open(DEVICE_FILE_NAME,O_RDWR);
-  if(dev_file < 0){
-    printf("Can't open device file: %s\n",DEVICE_FILE_NAME);
+  otarover_context_t* otarover_context = otarover_init();
+  if(otarover_context == NULL){
+    printf("Error starting otarover library. Is otarover kernel driver loaded?\n");
     return(EXIT_FAILURE);
   }
 
@@ -60,12 +51,12 @@ int main(int argc, char** argv)
           }
 
           if(val > 0) {
-            val = OTAROVER_IOCTL_DC_MOTOR_ENABLE;
+            val = OTAROVER_DC_MOTOR_ENABLE;
           } else {
-            val = OTAROVER_IOCTL_DC_MOTOR_DISABLE;
+            val = OTAROVER_DC_MOTOR_DISABLE;
           }
 
-          ret = ioctl(dev_file, OTAROVER_IOCTL_SET_M_ENABLE,&val);
+          ret = otarover_dc_motor_set_enable(otarover_context, val);
           if(ret != 0){
             printf ("error setting option %s with value %s\n", long_options[opt_index].name, optarg);
           }
@@ -77,7 +68,7 @@ int main(int argc, char** argv)
           printf ("get option %s\n", long_options[opt_index].name);
         } else {
           val = strtol(optarg,&pend, 10);
-          ret = ioctl(dev_file, OTAROVER_IOCTL_SET_M1_SPEED,&val);
+          ret = otarover_dc_motor_set_speed(otarover_context, val, OTAROVER_DC_MOTOR1);
           if(ret != 0){
             printf ("error setting option %s with value %s\n", long_options[opt_index].name, optarg);
           }
@@ -90,16 +81,16 @@ int main(int argc, char** argv)
         } else {
           val = -2;
           if(strncmp(optarg,"forward",(strlen(optarg) > 7 ? 7 : strlen(optarg))) == 0){
-            val = OTAROVER_IOCTL_DIR_FORWARD;
+            val = OTAROVER_DIR_FORWARD;
           } else if(strncmp(optarg,"backward", (strlen(optarg) > 8 ? 8 : strlen(optarg))) == 0){
-            val = OTAROVER_IOCTL_DIR_BACKWARD;
+            val = OTAROVER_DIR_BACKWARD;
           } else if(strncmp(optarg,"stopped", (strlen(optarg) > 7 ? 7 : strlen(optarg))) == 0){
-            val = OTAROVER_IOCTL_DIR_STOPPED;
+            val = OTAROVER_DIR_STOPPED;
           } else {
             printf ("invalid argument to option %s\n", long_options[opt_index].name);
           }
           if(val != -2){
-            ret = ioctl(dev_file, OTAROVER_IOCTL_SET_M1_DIRECTION,&val);
+            ret = otarover_dc_motor_set_direction(otarover_context, val, OTAROVER_DC_MOTOR1);
             if(ret != 0){
               printf ("error setting option %s with value %s\n", long_options[opt_index].name, optarg);
             }
@@ -113,14 +104,14 @@ int main(int argc, char** argv)
         } else {
           val = -2;
           if(strncmp(optarg,"normal",(strlen(optarg) > 6 ? 6 : strlen(optarg))) == 0){
-            val = OTAROVER_IOCTL_CONFIG_NORMAL;
+            val = OTAROVER_CONFIG_NORMAL;
           } else if(strncmp(optarg,"reverse", (strlen(optarg) > 7 ? 7 : strlen(optarg))) == 0){
-            val = OTAROVER_IOCTL_CONFIG_REVERSE;
+            val = OTAROVER_CONFIG_REVERSE;
           } else {
             printf ("invalid argument to option %s\n", long_options[opt_index].name);
           }
           if(val != -2){
-            ret = ioctl(dev_file, OTAROVER_IOCTL_SET_M1_CONFIG,&val);
+            ret = otarover_dc_motor_set_config(otarover_context, val, OTAROVER_DC_MOTOR1);
             if(ret != 0){
               printf ("error setting option %s with value %s\n", long_options[opt_index].name, optarg);
             }
@@ -133,7 +124,7 @@ int main(int argc, char** argv)
           printf ("get option %s\n", long_options[opt_index].name);
         } else {
           val = strtol(optarg,&pend,10);
-          ret = ioctl(dev_file, OTAROVER_IOCTL_SET_M2_SPEED,&val);
+          ret = otarover_dc_motor_set_speed(otarover_context, val, OTAROVER_DC_MOTOR2);
           if(ret != 0){
             printf ("error setting option %s with value %s\n", long_options[opt_index].name, optarg);
           }
@@ -146,16 +137,16 @@ int main(int argc, char** argv)
         } else {
           val = -2;
           if(strncmp(optarg,"forward",(strlen(optarg) > 7 ? 7 : strlen(optarg))) == 0){
-            val = OTAROVER_IOCTL_DIR_FORWARD;
+            val = OTAROVER_DIR_FORWARD;
           } else if(strncmp(optarg,"backward", (strlen(optarg) > 8 ? 8 : strlen(optarg))) == 0){
-            val = OTAROVER_IOCTL_DIR_BACKWARD;
+            val = OTAROVER_DIR_BACKWARD;
           } else if(strncmp(optarg,"stopped", (strlen(optarg) > 7 ? 7 : strlen(optarg))) == 0){
-            val = OTAROVER_IOCTL_DIR_STOPPED;
+            val = OTAROVER_DIR_STOPPED;
           } else {
             printf ("invalid argument to option %s\n", long_options[opt_index].name);
           }
           if(val != -2){
-            ret = ioctl(dev_file, OTAROVER_IOCTL_SET_M2_DIRECTION,&val);
+            ret = otarover_dc_motor_set_direction(otarover_context, val, OTAROVER_DC_MOTOR2);
             if(ret != 0){
               printf ("error setting option %s with value %s\n", long_options[opt_index].name, optarg);
             }
@@ -169,15 +160,15 @@ int main(int argc, char** argv)
         } else {
           val = -2;
           if(strncmp(optarg,"normal",(strlen(optarg) > 6 ? 6 : strlen(optarg))) == 0){
-            val = OTAROVER_IOCTL_CONFIG_NORMAL;
+            val = OTAROVER_CONFIG_NORMAL;
           } else if(strncmp(optarg,"reverse", (strlen(optarg) > 7 ? 7 : strlen(optarg))) == 0){
-            val = OTAROVER_IOCTL_CONFIG_REVERSE;
+            val = OTAROVER_CONFIG_REVERSE;
           } else {
             printf ("invalid argument to option %s\n", long_options[opt_index].name);
           }
 
           if(val != -2){
-            ret = ioctl(dev_file, OTAROVER_IOCTL_SET_M2_CONFIG,&val);
+            ret = otarover_dc_motor_set_config(otarover_context, val, OTAROVER_DC_MOTOR2);
             if(ret != 0){
               printf ("error setting option %s with value %s\n", long_options[opt_index].name, optarg);
             }
@@ -197,7 +188,7 @@ int main(int argc, char** argv)
     }
   }
 
-  close(dev_file);
+  otarover_close(otarover_context);
 
   return EXIT_SUCCESS;
 }

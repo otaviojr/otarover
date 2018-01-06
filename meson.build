@@ -52,16 +52,27 @@ compiler = meson.get_compiler('c')
 otarover_platform_src = [
 ]
 
+otarover_lib_platform_src = [
+]
+
 if platform == 'blue' and system == 'linux'
   message('Platform ' + platform + ' selected')
   otarover_platform_src = [
     'src/platform/linux/blue/platform_linux_blue.c'
   ]
+
+  otarover_lib_platform_src = [
+  ]
+
 else
   error('No platform/system selected. Use -Dplatform=<platform> -Dsystem=<system> to set one')
 endif
 
 otarover_deps = [
+]
+
+otarover_lib_sources = [
+  'lib/otaroverlib.c'
 ]
 
 otarover_sources = [
@@ -78,7 +89,10 @@ otarover_cli_sources = [
 otarover_cli_deps = [
 ]
 
-exe = executable('otaroverctl', otarover_cli_sources, dependencies : otarover_cli_deps, include_directories: incdir, install : true)
+static_lib = static_library('otarover', otarover_lib_sources, include_directories: incdir)
+shared_lib = shared_library('otarover', otarover_lib_sources, include_directories: incdir)
+
+exe = executable('otaroverctl', otarover_cli_sources, dependencies : otarover_cli_deps, include_directories: incdir, install : true, link_with: static_lib)
 test('Check Generated Application', exe)
-exe = executable('otarover', otarover_sources, dependencies : otarover_deps, include_directories: incdir, install : true)
+exe = executable('otarover', otarover_sources, dependencies : otarover_deps, include_directories: incdir, install : true, link_with: static_lib)
 test('Check Generated Application', exe)

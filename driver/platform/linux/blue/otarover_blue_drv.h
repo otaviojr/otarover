@@ -8,5 +8,10 @@
  *
  */
 
-#define FIRST_MINOR       1
-#define MINOR_CNT         3
+#ifndef __OTAROVER_BLUE_DRV_H__
+#define __OTAROVER_BLUE_DRV_H__
+
+  #define FIRST_MINOR       1
+  #define MINOR_CNT         3
+
+#endif //__OTAROVER_BLUE_IO_H__
