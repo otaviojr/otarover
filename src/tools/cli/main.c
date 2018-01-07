@@ -21,8 +21,7 @@ static struct option long_options[] =
 
 int main(int argc, char** argv)
 {
-  long val;
-  int ret, opt, opt_index;
+  int ret, opt, opt_index, val;
   char* pend;
 
   otarover_context_t* otarover_context = otarover_init();
@@ -41,7 +40,12 @@ int main(int argc, char** argv)
     switch(opt){
       case 'a':
         if(optarg == NULL){
-          printf ("get option %s\n", long_options[opt_index].name);
+          ret = otarover_dc_motor_is_enable(otarover_context, &val);
+          if(ret != 0){
+            printf ("error getting option %s\n", long_options[opt_index].name);
+          } else {
+            printf ("%s: %s\n", long_options[opt_index].name, (val ? "true" : "false"));
+          }
         } else {
           val = 0;
           if(strncmp(optarg,"true", (strlen(optarg) > 4 ? 4 : strlen(optarg))) != 0){
@@ -65,7 +69,12 @@ int main(int argc, char** argv)
 
       case 'b':
         if(optarg == NULL){
-          printf ("get option %s\n", long_options[opt_index].name);
+          ret = otarover_dc_motor_get_speed(otarover_context, &val, OTAROVER_DC_MOTOR1);
+          if(ret != 0) {
+            printf ("error getting option %s\n", long_options[opt_index].name);
+          } else {
+            printf ("%s: %d\n", long_options[opt_index].name, val);
+          }
         } else {
           val = strtol(optarg,&pend, 10);
           ret = otarover_dc_motor_set_speed(otarover_context, val, OTAROVER_DC_MOTOR1);
@@ -77,7 +86,12 @@ int main(int argc, char** argv)
 
       case 'c':
         if(optarg == NULL){
-          printf ("get option %s\n", long_options[opt_index].name);
+          ret = otarover_dc_motor_get_direction(otarover_context, &val, OTAROVER_DC_MOTOR1);
+          if(ret != 0) {
+            printf ("error getting option %s\n", long_options[opt_index].name);
+          } else {
+            printf ("%s: %s\n", long_options[opt_index].name, (val == OTAROVER_DIR_FORWARD ? "forward" : (val == OTAROVER_DIR_BACKWARD ? "backward" : "stopped")));
+          }
         } else {
           val = -2;
           if(strncmp(optarg,"forward",(strlen(optarg) > 7 ? 7 : strlen(optarg))) == 0){
@@ -100,7 +114,12 @@ int main(int argc, char** argv)
 
       case 'd':
         if(optarg == NULL){
-          printf ("get option %s\n", long_options[opt_index].name);
+          ret = otarover_dc_motor_get_config(otarover_context, &val, OTAROVER_DC_MOTOR1);
+          if(ret != 0) {
+            printf ("error getting option %s\n", long_options[opt_index].name);
+          } else {
+            printf ("%s: %s\n", long_options[opt_index].name, (val == OTAROVER_CONFIG_NORMAL ? "normal" : "reverse"));
+          }
         } else {
           val = -2;
           if(strncmp(optarg,"normal",(strlen(optarg) > 6 ? 6 : strlen(optarg))) == 0){
@@ -121,7 +140,12 @@ int main(int argc, char** argv)
 
       case 'e':
         if(optarg == NULL){
-          printf ("get option %s\n", long_options[opt_index].name);
+          ret = otarover_dc_motor_get_speed(otarover_context, &val, OTAROVER_DC_MOTOR2);
+          if(ret != 0) {
+            printf ("error getting option %s\n", long_options[opt_index].name);
+          } else {
+            printf ("%s: %d\n", long_options[opt_index].name, val);
+          }
         } else {
           val = strtol(optarg,&pend,10);
           ret = otarover_dc_motor_set_speed(otarover_context, val, OTAROVER_DC_MOTOR2);
@@ -133,7 +157,12 @@ int main(int argc, char** argv)
 
       case 'f':
         if(optarg == NULL){
-          printf ("get option %s\n", long_options[opt_index].name);
+          ret = otarover_dc_motor_get_direction(otarover_context, &val, OTAROVER_DC_MOTOR2);
+          if(ret != 0) {
+            printf ("error getting option %s\n", long_options[opt_index].name);
+          } else {
+            printf ("%s: %s\n", long_options[opt_index].name, (val == OTAROVER_DIR_FORWARD ? "forward" : (val == OTAROVER_DIR_BACKWARD ? "backward" : "stopped")));
+          }
         } else {
           val = -2;
           if(strncmp(optarg,"forward",(strlen(optarg) > 7 ? 7 : strlen(optarg))) == 0){
@@ -156,7 +185,12 @@ int main(int argc, char** argv)
 
       case 'g':
         if(optarg == NULL){
-          printf ("get option %s\n", long_options[opt_index].name);
+          ret = otarover_dc_motor_get_config(otarover_context, &val, OTAROVER_DC_MOTOR2);
+          if(ret != 0) {
+            printf ("error getting option %s\n", long_options[opt_index].name);
+          } else {
+            printf ("%s: %s\n", long_options[opt_index].name, (val == OTAROVER_CONFIG_NORMAL ? "normal" : "reverse"));
+          }
         } else {
           val = -2;
           if(strncmp(optarg,"normal",(strlen(optarg) > 6 ? 6 : strlen(optarg))) == 0){

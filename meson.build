@@ -58,7 +58,7 @@ otarover_lib_platform_src = [
 if platform == 'blue' and system == 'linux'
   message('Platform ' + platform + ' selected')
   otarover_platform_src = [
-    'src/platform/linux/blue/platform_linux_blue.c'
+    #'src/platform/linux/blue/platform_linux_blue.c'
   ]
 
   otarover_lib_platform_src = [

@@ -134,7 +134,7 @@ int otarover_dc_motor_get_direction(otarover_context_t* context, int* dir, int m
 
   if(val == OTAROVER_IOCTL_DIR_FORWARD){
     *dir = OTAROVER_DIR_FORWARD;
-  } else if(OTAROVER_IOCTL_DIR_BACKWARD){
+  } else if(val == OTAROVER_IOCTL_DIR_BACKWARD){
     *dir = OTAROVER_DIR_BACKWARD;
   } else {
     *dir = OTAROVER_DIR_STOPPED;

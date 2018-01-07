@@ -1,14 +1,31 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 #include <signal.h>
-#include <sys/types.h>
-#include <sys/stat.h>
+#include <getopt.h>
+#include <arpa/inet.h>
+#include <sys/socket.h>
 
-#include "otarover_platform.h"
+#include "otaroverlib.h"
 
-/* platform user space driver */
-extern otarover_platform_t platform;
+static int m1_reverse = 0;
+static int m2_reverse = 0;
+static int is_daemon = 0;
+
+static otarover_context_t* context;
+
+static struct option long_options[] =
+{
+  {"m1-config",           no_argument,  &m1_reverse,  1},
+  {"m2-config",           no_argument,  &m2_reverse,  1},
+  {"daemon",              no_argument,  &is_daemon,      1},
+  {"help",                no_argument,  0,            'h'},
+  {0, 0, 0, 0}
+};
+
+#define BUFFER_LEN    256
+#define PORT          7777
 
 void daemonize()
 {
@@ -33,18 +50,127 @@ void daemonize()
 
 int main(int argc, char**argv)
 {
-    printf("OTAROVER: Starting otarover 1.0\n");
+  struct sockaddr_in si_me, si_other;
+  socklen_t slen = sizeof(si_other);
+  int s , recv_len, opt, opt_index, ret;
+  char buf[BUFFER_LEN];
 
-    //TODO: command line to start as daemon
-    daemonize();
+  printf("OTAROVER: Starting otarover 1.0\n");
 
-    (*platform.init)();
+  while(1){
+    opt = getopt_long (argc, argv, "", long_options, &opt_index);
 
-    while(1){
-        sleep(20);
+    if(opt == -1){
+      break;
     }
 
-    (*platform.exit)();
+    switch(opt){
+      case '?':
+        printf("Try 'otaroverctl --help' for more information\n");
+        break;
 
-    return EXIT_SUCCESS;
+      case 'h':
+        break;
+
+      default:
+        abort();
+    }
+  }
+
+  context = otarover_init();
+  if(context == NULL){
+    printf("Error starting otarover library. Is otarover kernel driver loaded?\n");
+    return(EXIT_FAILURE);
+  }
+
+  if(is_daemon) daemonize();
+
+  ret = otarover_dc_motor_set_enable(context, OTAROVER_DC_MOTOR_ENABLE);
+  if(ret < 0){
+    printf ("otaroverlib error: otarover_dc_motor_set_enable\n");
+  }
+  if(!m1_reverse){
+    ret = otarover_dc_motor_set_config(context, OTAROVER_CONFIG_NORMAL, OTAROVER_DC_MOTOR1);
+    if(ret < 0){
+      printf ("otaroverlib error: otarover_dc_motor_set_config\n");
+    }
+  }  else  {
+    ret = otarover_dc_motor_set_config(context, OTAROVER_CONFIG_REVERSE, OTAROVER_DC_MOTOR1);
+    if(ret < 0){
+      printf ("otaroverlib error: otarover_dc_motor_set_config\n");
+    }
+  }
+
+  if(!m2_reverse){
+    ret = otarover_dc_motor_set_config(context, OTAROVER_CONFIG_NORMAL, OTAROVER_DC_MOTOR2);
+    if(ret < 0){
+      printf ("otaroverlib error: otarover_dc_motor_set_config\n");
+    }
+  }  else  {
+    ret = otarover_dc_motor_set_config(context, OTAROVER_CONFIG_REVERSE, OTAROVER_DC_MOTOR2);
+    if(ret < 0){
+      printf ("otaroverlib error: otarover_dc_motor_set_config\n");
+    }
+  }
+
+  ret = otarover_dc_motor_set_direction(context, OTAROVER_DIR_FORWARD , OTAROVER_DC_MOTOR1);
+  if(ret < 0){
+    printf ("otaroverlib error: otarover_dc_motor_set_direction\n");
+  }
+  ret = otarover_dc_motor_set_direction(context, OTAROVER_DIR_FORWARD , OTAROVER_DC_MOTOR2);
+  if(ret < 0){
+    printf ("otaroverlib error: otarover_dc_motor_set_direction\n");
+  }
+
+  ret = otarover_dc_motor_set_speed(context, 0, OTAROVER_DC_MOTOR1);
+  if(ret < 0){
+    printf ("otaroverlib error: otarover_dc_motor_set_speed\n");
+  }
+  ret = otarover_dc_motor_set_speed(context, 0, OTAROVER_DC_MOTOR2);
+  if(ret < 0){
+    printf ("otaroverlib error: otarover_dc_motor_set_speed\n");
+  }
+
+  if ((s=socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1)
+  {
+    printf("Error creating socket\n");
+    return(EXIT_FAILURE);
+  }
+
+  memset((char *) &si_me, 0, sizeof(si_me));
+
+  si_me.sin_family = AF_INET;
+  si_me.sin_port = htons(PORT);
+  si_me.sin_addr.s_addr = htonl(INADDR_ANY);
+
+  if( bind(s , (struct sockaddr*)&si_me, sizeof(si_me) ) == -1)
+  {
+      printf("Error bindind socket\n");
+      return(EXIT_FAILURE);
+  }
+
+  while(1){
+    printf("Waiting for data...");
+
+    //try to receive some data, this is a blocking call
+    if ((recv_len = recvfrom(s, buf, BUFFER_LEN, 0, (struct sockaddr *) &si_other, &slen)) == -1)
+    {
+        printf("Error receiving data from socket\n");
+    }
+
+    //print details of the client/peer and the data received
+    printf("Received packet from %s:%d\n", inet_ntoa(si_other.sin_addr), ntohs(si_other.sin_port));
+    printf("Data: %s\n" , buf);
+
+    //now reply the client with the same data
+    if (sendto(s, buf, recv_len, 0, (struct sockaddr*) &si_other, slen) == -1)
+    {
+      printf("Error sending data from socket\n");
+    }
+  }
+
+  close(s);
+  otarover_close(context);
+
+  return EXIT_SUCCESS;
 }
