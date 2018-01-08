@@ -8,6 +8,7 @@
 #include <sys/socket.h>
 
 #include "otaroverlib.h"
+#include "net/otarover_protocol.h"
 
 static int m1_reverse = 0;
 static int m2_reverse = 0;
@@ -17,15 +18,16 @@ static otarover_context_t* context;
 
 static struct option long_options[] =
 {
-  {"m1-config",           no_argument,  &m1_reverse,  1},
-  {"m2-config",           no_argument,  &m2_reverse,  1},
-  {"daemon",              no_argument,  &is_daemon,      1},
-  {"help",                no_argument,  0,            'h'},
+  {"m1-config",           no_argument,        &m1_reverse,  1},
+  {"m2-config",           no_argument,        &m2_reverse,  1},
+  {"daemon",              no_argument,        &is_daemon,   1},
+  {"port",                required_argument,  NULL,         'a'},
+  {"help",                no_argument,        0,            'h'},
   {0, 0, 0, 0}
 };
 
 #define BUFFER_LEN    256
-#define PORT          7777
+#define DEFAULT_PORT          7777
 
 void daemonize()
 {
@@ -52,10 +54,15 @@ int main(int argc, char**argv)
 {
   struct sockaddr_in si_me, si_other;
   socklen_t slen = sizeof(si_other);
-  int s , recv_len, opt, opt_index, ret;
+  int s , recv_len, opt, opt_index, ret, socket_port;
   char buf[BUFFER_LEN];
+  char* pend;
+
+  otarover_protocol_t message;
 
   printf("OTAROVER: Starting otarover 1.0\n");
+
+  socket_port = DEFAULT_PORT;
 
   while(1){
     opt = getopt_long (argc, argv, "", long_options, &opt_index);
@@ -65,6 +72,10 @@ int main(int argc, char**argv)
     }
 
     switch(opt){
+      case 'a':
+        socket_port = strtol(optarg,&pend, 10);
+        break;
+
       case '?':
         printf("Try 'otaroverctl --help' for more information\n");
         break;
@@ -140,7 +151,7 @@ int main(int argc, char**argv)
   memset((char *) &si_me, 0, sizeof(si_me));
 
   si_me.sin_family = AF_INET;
-  si_me.sin_port = htons(PORT);
+  si_me.sin_port = htons(socket_port);
   si_me.sin_addr.s_addr = htonl(INADDR_ANY);
 
   if( bind(s , (struct sockaddr*)&si_me, sizeof(si_me) ) == -1)
@@ -160,13 +171,27 @@ int main(int argc, char**argv)
 
     //print details of the client/peer and the data received
     printf("Received packet from %s:%d\n", inet_ntoa(si_other.sin_addr), ntohs(si_other.sin_port));
-    printf("Data: %s\n" , buf);
+
+    if(!otarover_protocol_parse_message(buf, &message, recv_len)){
+      printf("Ignoring invalid message\n");
+    }
+
+    if(message.message_type == OTAROVER_PROTOCOL_MSG_TYPE_MOV){
+      printf("Processing MOV message\n");
+      if(message.cmd == OTAROVER_PROTOCOL_CMD_DIRECTION){
+        printf("Changing Direction\n");
+      } else if(message.cmd == OTAROVER_PROTOCOL_CMD_SPEED){
+        printf("Changing Speed\n");        
+      }
+    } else {
+      printf("Ignoring non implemented message\n");
+    }
 
     //now reply the client with the same data
-    if (sendto(s, buf, recv_len, 0, (struct sockaddr*) &si_other, slen) == -1)
-    {
-      printf("Error sending data from socket\n");
-    }
+    //if (sendto(s, buf, recv_len, 0, (struct sockaddr*) &si_other, slen) == -1)
+    //{
+    //  printf("Error sending data from socket\n");
+    //}
   }
 
   close(s);
