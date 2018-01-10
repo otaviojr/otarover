@@ -1,3 +1,31 @@
+/**
+ * @file   main.c
+ * @author Otavio Ribeiro
+ * @date   10 Jan 2018
+ * @brief  Otarover network daemon
+ *
+ * Copyright (c) 2018 Otávio Ribeiro <otavio.ribeiro@gmail.com>
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ *
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -69,7 +97,6 @@ int set_course()
   printf("OTAROVER: current_direction = %d\n", current_direction);
 
   if(current_speed > 0){
-
 
     desl = current_speed - ceil(abs(cos(current_direction*(PI/180)) * current_speed));
 
@@ -232,13 +259,11 @@ int main(int argc, char**argv)
   while(1){
     printf("Waiting for data...");
 
-    //try to receive some data, this is a blocking call
     if ((recv_len = recvfrom(s, buf, BUFFER_LEN, 0, (struct sockaddr *) &si_other, &slen)) == -1)
     {
         printf("Error receiving data from socket\n");
     }
 
-    //print details of the client/peer and the data received
     printf("Received packet from %s:%d\n", inet_ntoa(si_other.sin_addr), ntohs(si_other.sin_port));
 
     if(!otarover_protocol_parse_message(buf, &message, recv_len)){
@@ -260,7 +285,6 @@ int main(int argc, char**argv)
 
     set_course();
 
-    //now reply the client with the same data
     //if (sendto(s, buf, recv_len, 0, (struct sockaddr*) &si_other, slen) == -1)
     //{
     //  printf("Error sending data from socket\n");
