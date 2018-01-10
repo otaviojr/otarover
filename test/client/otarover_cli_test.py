@@ -1,7 +1,7 @@
 # @file   otarover_cli_test.py
 # @author Otavio Ribeiro
 # @date   10 Jan 2018
-# @brief  Simle command line application to test otarover daemon
+# @brief  Simle command line application to test the otarover daemon
 #
 # Copyright (c) 2018 Otávio Ribeiro <otavio.ribeiro@gmail.com>
 #
