@@ -68,10 +68,6 @@ int set_course()
 
   printf("OTAROVER: current_direction = %d\n", current_direction);
 
-  //sen(a) = co/hi
-  //co = sen(a)/hip
-  //tg(a) = co/ca
-  //co = tg(a)/speed
   if(current_speed > 0){
 
 
