@@ -7,6 +7,8 @@
 #include <arpa/inet.h>
 #include <sys/socket.h>
 
+#include <math.h>
+
 #include "otaroverlib.h"
 #include "net/otarover_protocol.h"
 
@@ -14,20 +16,28 @@ static int m1_reverse = 0;
 static int m2_reverse = 0;
 static int is_daemon = 0;
 
-static otarover_context_t* context;
+#define PI 3.14159265
 
 static struct option long_options[] =
 {
-  {"m1-config",           no_argument,        &m1_reverse,  1},
-  {"m2-config",           no_argument,        &m2_reverse,  1},
+  {"m1-reverse",          no_argument,        &m1_reverse,  1},
+  {"m2-reverse",          no_argument,        &m2_reverse,  1},
   {"daemon",              no_argument,        &is_daemon,   1},
   {"port",                required_argument,  NULL,         'a'},
+  {"strategy",            required_argument,  NULL,         'b'},
   {"help",                no_argument,        0,            'h'},
   {0, 0, 0, 0}
 };
 
 #define BUFFER_LEN    256
-#define DEFAULT_PORT          7777
+#define DEFAULT_PORT  7777
+
+static otarover_context_t* context = NULL;
+static int current_speed = 0;
+static int current_direction  = 0;
+
+static int left_motor = OTAROVER_DC_MOTOR1;
+static int right_motor = OTAROVER_DC_MOTOR2;
 
 void daemonize()
 {
@@ -50,6 +60,66 @@ void daemonize()
     signal(SIGHUP, SIG_IGN);
 }
 
+int set_course()
+{
+  int desl, left_speed, right_speed;
+
+  if(context == NULL) return -1;
+
+  printf("OTAROVER: current_direction = %d\n", current_direction);
+
+  //sen(a) = co/hi
+  //co = sen(a)/hip
+  //tg(a) = co/ca
+  //co = tg(a)/speed
+  if(current_speed > 0){
+
+
+    desl = current_speed - ceil(abs(cos(current_direction*(PI/180)) * current_speed));
+
+    printf("OTAROVER: desl = %d\n", desl);
+
+    left_speed = current_speed;
+    right_speed = current_speed;
+
+    printf("OTAROVER: left_speed before = %d\n", left_speed);
+    printf("OTAROVER: right_speed before = %d\n", right_speed);
+
+    /* for security purpose right now */
+    if(left_speed > 50) left_speed = 50;
+    if(right_speed > 50) right_speed = 50;
+
+    if(current_direction < 90){
+      right_speed -= desl;
+    } else if(current_direction > 270){
+      left_speed -= desl;
+    } else if(current_direction > 90 && current_direction < 180){
+      right_speed -= desl;
+    } else {
+      left_speed -= desl;
+    }
+
+    printf("OTAROVER: left_speed after = %d\n", left_speed);
+    printf("OTAROVER: right_speed after = %d\n", right_speed);
+
+    otarover_dc_motor_set_speed(context, left_speed, left_motor);
+    otarover_dc_motor_set_speed(context, right_speed, right_motor);
+
+    if(current_direction < 90 || current_direction > 270){
+      printf("OTAROVER: direction forward\n");
+      otarover_dc_motor_set_direction(context, OTAROVER_DIR_FORWARD, left_motor);
+      otarover_dc_motor_set_direction(context, OTAROVER_DIR_FORWARD, right_motor);
+    } else {
+      printf("OTAROVER: direction backward\n");
+      otarover_dc_motor_set_direction(context, OTAROVER_DIR_BACKWARD, left_motor);
+      otarover_dc_motor_set_direction(context, OTAROVER_DIR_BACKWARD, right_motor);
+    }
+  } else {
+    otarover_dc_motor_set_speed(context, 0, left_motor);
+    otarover_dc_motor_set_speed(context, 0, right_motor);
+  }
+  return 0;
+}
 int main(int argc, char**argv)
 {
   struct sockaddr_in si_me, si_other;
@@ -76,15 +146,15 @@ int main(int argc, char**argv)
         socket_port = strtol(optarg,&pend, 10);
         break;
 
+      case 'b':
+        break;
+
       case '?':
         printf("Try 'otaroverctl --help' for more information\n");
         break;
 
       case 'h':
         break;
-
-      default:
-        abort();
     }
   }
 
@@ -100,25 +170,26 @@ int main(int argc, char**argv)
   if(ret < 0){
     printf ("otaroverlib error: otarover_dc_motor_set_enable\n");
   }
-  if(!m1_reverse){
-    ret = otarover_dc_motor_set_config(context, OTAROVER_CONFIG_NORMAL, OTAROVER_DC_MOTOR1);
+
+  if(m1_reverse > 0){
+    ret = otarover_dc_motor_set_config(context, OTAROVER_CONFIG_REVERSE, OTAROVER_DC_MOTOR1);
     if(ret < 0){
       printf ("otaroverlib error: otarover_dc_motor_set_config\n");
     }
   }  else  {
-    ret = otarover_dc_motor_set_config(context, OTAROVER_CONFIG_REVERSE, OTAROVER_DC_MOTOR1);
+    ret = otarover_dc_motor_set_config(context, OTAROVER_CONFIG_NORMAL, OTAROVER_DC_MOTOR1);
     if(ret < 0){
       printf ("otaroverlib error: otarover_dc_motor_set_config\n");
     }
   }
 
-  if(!m2_reverse){
-    ret = otarover_dc_motor_set_config(context, OTAROVER_CONFIG_NORMAL, OTAROVER_DC_MOTOR2);
+  if(m2_reverse > 0){
+    ret = otarover_dc_motor_set_config(context, OTAROVER_CONFIG_REVERSE, OTAROVER_DC_MOTOR2);
     if(ret < 0){
       printf ("otaroverlib error: otarover_dc_motor_set_config\n");
     }
   }  else  {
-    ret = otarover_dc_motor_set_config(context, OTAROVER_CONFIG_REVERSE, OTAROVER_DC_MOTOR2);
+    ret = otarover_dc_motor_set_config(context, OTAROVER_CONFIG_NORMAL, OTAROVER_DC_MOTOR2);
     if(ret < 0){
       printf ("otaroverlib error: otarover_dc_motor_set_config\n");
     }
@@ -141,6 +212,8 @@ int main(int argc, char**argv)
   if(ret < 0){
     printf ("otaroverlib error: otarover_dc_motor_set_speed\n");
   }
+
+  printf("starting socket\n");
 
   if ((s=socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1)
   {
@@ -179,13 +252,17 @@ int main(int argc, char**argv)
     if(message.message_type == OTAROVER_PROTOCOL_MSG_TYPE_MOV){
       printf("Processing MOV message\n");
       if(message.cmd == OTAROVER_PROTOCOL_CMD_DIRECTION){
-        printf("Changing Direction\n");
+        printf("Changing Direction to %ld\n",message.value.int32_val);
+        current_direction = message.value.int32_val;
       } else if(message.cmd == OTAROVER_PROTOCOL_CMD_SPEED){
-        printf("Changing Speed\n");        
+        printf("Changing Speed to %ld\n", message.value.int32_val);
+        current_speed = message.value.int32_val;
       }
     } else {
       printf("Ignoring non implemented message\n");
     }
+
+    set_course();
 
     //now reply the client with the same data
     //if (sendto(s, buf, recv_len, 0, (struct sockaddr*) &si_other, slen) == -1)

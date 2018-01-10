@@ -68,7 +68,10 @@ else
   error('No platform/system selected. Use -Dplatform=<platform> -Dsystem=<system> to set one')
 endif
 
+mathlib_dep = cc.find_library('m', required: true)
+
 otarover_deps = [
+  mathlib_dep
 ]
 
 otarover_lib_sources = [
