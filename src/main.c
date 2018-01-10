@@ -143,6 +143,7 @@ int set_course()
   }
   return 0;
 }
+
 int main(int argc, char**argv)
 {
   struct sockaddr_in si_me, si_other;
@@ -262,12 +263,14 @@ int main(int argc, char**argv)
     if ((recv_len = recvfrom(s, buf, BUFFER_LEN, 0, (struct sockaddr *) &si_other, &slen)) == -1)
     {
         printf("Error receiving data from socket\n");
+        break;
     }
 
     printf("Received packet from %s:%d\n", inet_ntoa(si_other.sin_addr), ntohs(si_other.sin_port));
 
     if(!otarover_protocol_parse_message(buf, &message, recv_len)){
       printf("Ignoring invalid message\n");
+      continue;
     }
 
     if(message.message_type == OTAROVER_PROTOCOL_MSG_TYPE_MOV){
@@ -285,6 +288,7 @@ int main(int argc, char**argv)
 
     set_course();
 
+    otarover_protocol_destroy_message(&message);
     //if (sendto(s, buf, recv_len, 0, (struct sockaddr*) &si_other, slen) == -1)
     //{
     //  printf("Error sending data from socket\n");
