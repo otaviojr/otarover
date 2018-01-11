@@ -30,7 +30,7 @@ import curses;
 
 from otarover_protocol import *;
 
-MAX_SPEED=40;
+MAX_SPEED=90;
 MIN_SPEED=25;
 ANGLE_VAR=10;
 SPEED_VAR=5;
