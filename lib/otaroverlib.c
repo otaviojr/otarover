@@ -98,6 +98,9 @@ int otarover_dc_motor_set_speed(otarover_context_t* context, int speed, int moto
 
   if(val > 100) val = 100;
 
+  /* For security reasons only. Should be removed later */
+  //if(val > 50) val = 50;
+
   return ioctl(context->dev_fd, cmd, &val);
 }
 

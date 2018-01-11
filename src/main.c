@@ -108,10 +108,6 @@ int set_course()
     printf("OTAROVER: left_speed before = %d\n", left_speed);
     printf("OTAROVER: right_speed before = %d\n", right_speed);
 
-    /* for security purpose right now */
-    if(left_speed > 50) left_speed = 50;
-    if(right_speed > 50) right_speed = 50;
-
     if(current_direction < 90){
       right_speed -= desl;
     } else if(current_direction > 270){
@@ -138,8 +134,29 @@ int set_course()
       otarover_dc_motor_set_direction(context, OTAROVER_DIR_BACKWARD, right_motor);
     }
   } else {
-    otarover_dc_motor_set_speed(context, 0, left_motor);
-    otarover_dc_motor_set_speed(context, 0, right_motor);
+    if(current_direction == 0){
+      otarover_dc_motor_set_speed(context, 0, left_motor);
+      otarover_dc_motor_set_speed(context, 0, right_motor);
+    } else {
+      desl = 100 - ceil(abs(cos(current_direction*(PI/180)) * 100));
+
+      if(current_direction < 90){
+        otarover_dc_motor_set_direction(context, OTAROVER_DIR_FORWARD, left_motor);
+        otarover_dc_motor_set_direction(context, OTAROVER_DIR_BACKWARD, right_motor);
+      } else if(current_direction > 270){
+        otarover_dc_motor_set_direction(context, OTAROVER_DIR_BACKWARD, left_motor);
+        otarover_dc_motor_set_direction(context, OTAROVER_DIR_FORWARD, right_motor);
+      } else if(current_direction > 90 && current_direction < 180){
+        otarover_dc_motor_set_direction(context, OTAROVER_DIR_BACKWARD, left_motor);
+        otarover_dc_motor_set_direction(context, OTAROVER_DIR_FORWARD, right_motor);
+      } else {
+        otarover_dc_motor_set_direction(context, OTAROVER_DIR_FORWARD, left_motor);
+        otarover_dc_motor_set_direction(context, OTAROVER_DIR_BACKWARD, right_motor);
+      }
+
+      otarover_dc_motor_set_speed(context, desl, left_motor);
+      otarover_dc_motor_set_speed(context, desl, right_motor);
+    }
   }
   return 0;
 }
@@ -154,7 +171,7 @@ int main(int argc, char**argv)
 
   otarover_protocol_t message;
 
-  printf("OTAROVER: Starting otarover 1.0\n");
+  printf("OTAROVER: Starting otarover network daemon v1.0\n");
 
   socket_port = DEFAULT_PORT;
 
