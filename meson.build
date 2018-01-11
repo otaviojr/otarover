@@ -81,6 +81,7 @@ otarover_lib_sources = [
 otarover_sources = [
   'src/main.c',
   'src/net/otarover_protocol.c',
+  'src/strategy/otarover_tank.c',
   otarover_platform_src
 ]
 

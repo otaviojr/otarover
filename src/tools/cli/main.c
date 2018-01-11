@@ -75,7 +75,7 @@ int main(int argc, char** argv)
           }
         } else {
           val = 0;
-          if(strncmp(optarg,"true", (strlen(optarg) > 4 ? 4 : strlen(optarg))) != 0){
+          if(strcmp(optarg,"true") != 0){
             val = strtol(optarg,&pend,10);
           } else {
             val = 1;
@@ -121,11 +121,11 @@ int main(int argc, char** argv)
           }
         } else {
           val = -2;
-          if(strncmp(optarg,"forward",(strlen(optarg) > 7 ? 7 : strlen(optarg))) == 0){
+          if(strcmp(optarg,"forward") == 0){
             val = OTAROVER_DIR_FORWARD;
-          } else if(strncmp(optarg,"backward", (strlen(optarg) > 8 ? 8 : strlen(optarg))) == 0){
+          } else if(strcmp(optarg,"backward") == 0){
             val = OTAROVER_DIR_BACKWARD;
-          } else if(strncmp(optarg,"stopped", (strlen(optarg) > 7 ? 7 : strlen(optarg))) == 0){
+          } else if(strcmp(optarg,"stopped") == 0){
             val = OTAROVER_DIR_STOPPED;
           } else {
             printf ("invalid argument to option %s\n", long_options[opt_index].name);
@@ -149,9 +149,9 @@ int main(int argc, char** argv)
           }
         } else {
           val = -2;
-          if(strncmp(optarg,"normal",(strlen(optarg) > 6 ? 6 : strlen(optarg))) == 0){
+          if(strcmp(optarg,"normal") == 0){
             val = OTAROVER_CONFIG_NORMAL;
-          } else if(strncmp(optarg,"reverse", (strlen(optarg) > 7 ? 7 : strlen(optarg))) == 0){
+          } else if(strcmp(optarg,"reverse") == 0){
             val = OTAROVER_CONFIG_REVERSE;
           } else {
             printf ("invalid argument to option %s\n", long_options[opt_index].name);
@@ -192,11 +192,11 @@ int main(int argc, char** argv)
           }
         } else {
           val = -2;
-          if(strncmp(optarg,"forward",(strlen(optarg) > 7 ? 7 : strlen(optarg))) == 0){
+          if(strcmp(optarg,"forward") == 0){
             val = OTAROVER_DIR_FORWARD;
-          } else if(strncmp(optarg,"backward", (strlen(optarg) > 8 ? 8 : strlen(optarg))) == 0){
+          } else if(strcmp(optarg,"backward") == 0){
             val = OTAROVER_DIR_BACKWARD;
-          } else if(strncmp(optarg,"stopped", (strlen(optarg) > 7 ? 7 : strlen(optarg))) == 0){
+          } else if(strcmp(optarg,"stopped") == 0){
             val = OTAROVER_DIR_STOPPED;
           } else {
             printf ("invalid argument to option %s\n", long_options[opt_index].name);
@@ -220,9 +220,9 @@ int main(int argc, char** argv)
           }
         } else {
           val = -2;
-          if(strncmp(optarg,"normal",(strlen(optarg) > 6 ? 6 : strlen(optarg))) == 0){
+          if(strcmp(optarg,"normal") == 0){
             val = OTAROVER_CONFIG_NORMAL;
-          } else if(strncmp(optarg,"reverse", (strlen(optarg) > 7 ? 7 : strlen(optarg))) == 0){
+          } else if(strcmp(optarg,"reverse") == 0){
             val = OTAROVER_CONFIG_REVERSE;
           } else {
             printf ("invalid argument to option %s\n", long_options[opt_index].name);

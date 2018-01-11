@@ -39,12 +39,11 @@
 
 #include "otaroverlib.h"
 #include "net/otarover_protocol.h"
+#include "strategy/otarover_strategy.h"
 
 static int m1_reverse = 0;
 static int m2_reverse = 0;
 static int is_daemon = 0;
-
-#define PI 3.14159265
 
 static struct option long_options[] =
 {
@@ -64,8 +63,7 @@ static otarover_context_t* context = NULL;
 static int current_speed = 0;
 static int current_direction  = 0;
 
-static int left_motor = OTAROVER_DC_MOTOR1;
-static int right_motor = OTAROVER_DC_MOTOR2;
+otarover_strategy_t* strategy=NULL;
 
 void daemonize()
 {
@@ -86,79 +84,6 @@ void daemonize()
 
     signal(SIGCHLD, SIG_IGN);
     signal(SIGHUP, SIG_IGN);
-}
-
-int set_course()
-{
-  int desl, left_speed, right_speed;
-
-  if(context == NULL) return -1;
-
-  printf("OTAROVER: current_direction = %d\n", current_direction);
-
-  if(current_speed > 0){
-
-    desl = current_speed - ceil(abs(cos(current_direction*(PI/180)) * current_speed));
-
-    printf("OTAROVER: desl = %d\n", desl);
-
-    left_speed = current_speed;
-    right_speed = current_speed;
-
-    printf("OTAROVER: left_speed before = %d\n", left_speed);
-    printf("OTAROVER: right_speed before = %d\n", right_speed);
-
-    if(current_direction < 90){
-      right_speed -= desl;
-    } else if(current_direction > 270){
-      left_speed -= desl;
-    } else if(current_direction > 90 && current_direction < 180){
-      right_speed -= desl;
-    } else {
-      left_speed -= desl;
-    }
-
-    printf("OTAROVER: left_speed after = %d\n", left_speed);
-    printf("OTAROVER: right_speed after = %d\n", right_speed);
-
-    otarover_dc_motor_set_speed(context, left_speed, left_motor);
-    otarover_dc_motor_set_speed(context, right_speed, right_motor);
-
-    if(current_direction < 90 || current_direction > 270){
-      printf("OTAROVER: direction forward\n");
-      otarover_dc_motor_set_direction(context, OTAROVER_DIR_FORWARD, left_motor);
-      otarover_dc_motor_set_direction(context, OTAROVER_DIR_FORWARD, right_motor);
-    } else {
-      printf("OTAROVER: direction backward\n");
-      otarover_dc_motor_set_direction(context, OTAROVER_DIR_BACKWARD, left_motor);
-      otarover_dc_motor_set_direction(context, OTAROVER_DIR_BACKWARD, right_motor);
-    }
-  } else {
-    if(current_direction == 0){
-      otarover_dc_motor_set_speed(context, 0, left_motor);
-      otarover_dc_motor_set_speed(context, 0, right_motor);
-    } else {
-      desl = 100 - ceil(abs(cos(current_direction*(PI/180)) * 100));
-
-      if(current_direction < 90){
-        otarover_dc_motor_set_direction(context, OTAROVER_DIR_FORWARD, left_motor);
-        otarover_dc_motor_set_direction(context, OTAROVER_DIR_BACKWARD, right_motor);
-      } else if(current_direction > 270){
-        otarover_dc_motor_set_direction(context, OTAROVER_DIR_BACKWARD, left_motor);
-        otarover_dc_motor_set_direction(context, OTAROVER_DIR_FORWARD, right_motor);
-      } else if(current_direction > 90 && current_direction < 180){
-        otarover_dc_motor_set_direction(context, OTAROVER_DIR_BACKWARD, left_motor);
-        otarover_dc_motor_set_direction(context, OTAROVER_DIR_FORWARD, right_motor);
-      } else {
-        otarover_dc_motor_set_direction(context, OTAROVER_DIR_FORWARD, left_motor);
-        otarover_dc_motor_set_direction(context, OTAROVER_DIR_BACKWARD, right_motor);
-      }
-
-      otarover_dc_motor_set_speed(context, desl, left_motor);
-      otarover_dc_motor_set_speed(context, desl, right_motor);
-    }
-  }
-  return 0;
 }
 
 int main(int argc, char**argv)
@@ -188,6 +113,13 @@ int main(int argc, char**argv)
         break;
 
       case 'b':
+        if(optarg == NULL){
+          printf ("invalid argument to option %s\n", long_options[opt_index].name);
+        }  else {
+          if(strcmp(optarg,"tank") == 0){
+            strategy = &otarover_tank_strategy;
+          }
+        }
         break;
 
       case '?':
@@ -197,6 +129,15 @@ int main(int argc, char**argv)
       case 'h':
         break;
     }
+  }
+
+  if(strategy == NULL){
+    printf("No strategy selected. Use otarover --strategy=<strategy> to select one\n");
+    return(EXIT_FAILURE);
+  }
+
+  if((*strategy->init)() < 0){
+    return(EXIT_FAILURE);
   }
 
   context = otarover_init();
@@ -303,7 +244,7 @@ int main(int argc, char**argv)
       printf("Ignoring non implemented message\n");
     }
 
-    set_course();
+    (*strategy->set_course)(context, current_direction, current_speed);
 
     otarover_protocol_destroy_message(&message);
     //if (sendto(s, buf, recv_len, 0, (struct sockaddr*) &si_other, slen) == -1)
@@ -311,6 +252,8 @@ int main(int argc, char**argv)
     //  printf("Error sending data from socket\n");
     //}
   }
+
+  (*strategy->exit)();
 
   close(s);
   otarover_close(context);
