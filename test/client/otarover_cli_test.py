@@ -35,6 +35,31 @@ MIN_SPEED=25;
 ANGLE_VAR=10;
 SPEED_VAR=5;
 
+screen = curses.initscr();
+curses.start_color();
+
+curses.init_color(99,200,200,200);
+curses.init_pair(1, curses.COLOR_WHITE, 99);
+curses.init_pair(2, curses.COLOR_WHITE, curses.COLOR_RED);
+
+screen.bkgd(' ', curses.color_pair(1));
+screen.clear();
+screen_size = screen.getmaxyx();
+curses.curs_set(0);
+
+def update_vars(win2,win3, current_speed, current_direction):
+	label = 'cur. speed: %s' % (current_speed);
+	win2.clear();
+	win2.box();
+	win2.addstr(1, int((screen_size[1]/4)/2) - int(len(label)/2),  label);
+	win2.refresh();
+	label = 'cur. direction: %sdeg' % (current_direction);
+	win3.clear();
+	win3.box();
+	win3.addstr(1, int((screen_size[1]/4)/2) - int(len(label)/2),  label);
+	win3.refresh();
+
+
 def main(win):
 	sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM);
 	server_addr = ('192.168.0.47',7777);
@@ -42,20 +67,41 @@ def main(win):
 	current_direction = 0;
 	current_speed = 0;
 
+	win1 = curses.newwin(8, screen_size[1], screen_size[0]-8, 0);
+	win1.bkgd(' ', curses.color_pair(2));
+	win1.box();
+	win1.refresh();
+
+	win2 = curses.newwin(3, int(screen_size[1]/4), 0, 0);
+	win2.bkgd(' ', curses.color_pair(2));
+	win2.box();
+	win2.refresh();
+
+	win3 = curses.newwin(3, int(screen_size[1]/4), 0, screen_size[1]-int(screen_size[1]/4));
+	win3.bkgd(' ', curses.color_pair(2));
+	win3.box();
+	win3.refresh();
+
+	update_vars(win2,win3,current_speed,current_direction);
+
 	while 1:
 		try:
-			key = win.getch();
-			win.clear();
-			win.addstr("Detected key: ");
-			win.addstr(str(key));
-			win.addstr(" - ");
-			win.addstr(chr(key));
-			win.addstr("\n");
+			key = screen.getch();
+			win1.clear();
+			win1.box();
+			line = 2;
+			col = 2
+			win1.addstr(line,col,"Detected key: ");
+			win1.addstr(str(key));
+			win1.addstr(" - ");
+			win1.addstr(chr(key));
+			line += 1;
+			win1.refresh();
 
 			message = None;
 			message1 = None;
 
-			if key == 27: #ESC
+			if key == 27 or key == 113: #ESC
 				sys.exit();
 			elif key == 97: #a
 				current_direction -= ANGLE_VAR;
@@ -95,25 +141,35 @@ def main(win):
 
 				message = OtaRoverProtocolMessage(OtaRoverProtocolMessageType.OTAROVER_PROTOCOL_MESSAGE_TYPE_MOV, OtaRoverProtocolCmd.OTAROVER_PROTOCOL_CMD_DIRECTION,OtaRoverProtocolValueType.OTAROVER_PROTOCOL_VALUE_TYPE_INT32,current_direction);
 			else:
-				win.addstr("Invalid key\n");
+				win1.addstr(line, col, "Invalid key");
+				line += 1
 
-			win.addstr("Sending Message\n");
+			win1.addstr(line, col, "Sending Message");
+			line += 1;
 			if message != None:
 				sent = sock.sendto(message.encode(),server_addr);
-				win.addstr( 'sent %s bytes back to %s' % (sent, server_addr) );
-				win.addstr( '\n');
+				win1.addstr(line, col, 'sent %s bytes back to %s' % (sent, server_addr) );
+				line += 1;
 			else:
-				win.addstr('Error sending message\n');
+				win1.addstr(line, col, 'Error sending message');
+				line += 1;
 
 			if message1 != None:
 				sent = sock.sendto(message1.encode(),server_addr);
-				win.addstr( 'sent %s bytes back to %s' % (sent, server_addr) );
-				win.addstr( '\n');
+				win1.addstr(line, col, 'sent %s bytes back to %s' % (sent, server_addr) );
+				line += 1;
+
+			win1.refresh();
+
+			update_vars(win2,win3,current_speed,current_direction);
 
 		except Exception as e:
-			win.addstr(str(e));
+			win1.addstr(line, col, str(e));
+			win1.refresh();
 			pass
 
 	sock.close();
+	curses.endwin();
+	curses.curs_set(1);
 
 curses.wrapper(main);
