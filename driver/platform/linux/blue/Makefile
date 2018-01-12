@@ -1,5 +1,5 @@
 obj-m += otarover.o
-otarover-objs := otarover_blue_drv.o otarover_blue_io.o
+otarover-objs := otarover_blue_drv.o otarover_blue_io.o otarover_blue_sensors.o
 
 EXTRA_CFLAGS := -I$(src)/../../../../inc/platform/linux/
 

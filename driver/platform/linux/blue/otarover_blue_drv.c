@@ -40,6 +40,7 @@
 
 #include "otarover_blue_drv.h"
 #include "otarover_blue_io.h"
+#include "otarover_blue_sensors.h"
 #include "otarover_ioctl.h"
 
 MODULE_LICENSE("GPL");
@@ -306,7 +307,15 @@ static int __init otarover_init(void)
      return PTR_ERR(char_device_object);
    }
 
-   otarover_configure_board(&board_config);
+   result = otarover_configure_board(&board_config);
+   if(result < 0){
+     return result;
+   }
+
+   result = otarover_init_sensors();
+   if(result < 0){
+     return result;
+   }
 
    // GPIO numbers and IRQ numbers are not the same! This function performs the mapping for us
    // irqNumber = gpio_to_irq(gpioButton);
@@ -346,7 +355,8 @@ static void __exit otarover_exit(void){
    unregister_chrdev_region(dev,MINOR_CNT);
 
    otarover_release_board(&board_config);
-
+   otarover_end_sensors();
+   
    /* stop heartbeat led */
    gpio_set_value(gpio_heartbeat_led, 0);
    gpio_unexport(gpio_heartbeat_led);
