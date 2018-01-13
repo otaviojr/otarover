@@ -41,13 +41,13 @@ uint8_t mag_cal[3];
 
 static struct i2c_board_info board_info_mpu9250[] =  {
   {
-    I2C_BOARD_INFO("MPU9250", 0x68),
+    I2C_BOARD_INFO("MPU9250", MPU9250_ADDRESS),
   }
 };
 
 static struct i2c_board_info board_info_ak8963[] =  {
   {
-    I2C_BOARD_INFO("AK8963", 0x0C),
+    I2C_BOARD_INFO("AK8963", AK8963_ADDRESS),
   }
 };
 
@@ -84,16 +84,16 @@ int otarover_sensors_init()
     return -ENODEV;
   }
 
-  whoami = i2c_smbus_read_byte_data(i2c_mpu9250_client, 0x75);
-  if(whoami != 0x71){
+  whoami = i2c_smbus_read_byte_data(i2c_mpu9250_client, MPU9250_REG_WHOAMI);
+  if(whoami != MPU9250_WHOAMI_VALUE){
     printk(KERN_ALERT "OTAROVER: Invalid MPU9250 sensor signature");
     return -ENODEV;
   } else {
     printk(KERN_INFO "OTAROVER: Found a valid MPU9250 sensor on i2c2");
   }
 
-  whoami = i2c_smbus_read_byte_data(i2c_ak8963_client, 0x00);
-  if(whoami != 0x48){
+  whoami = i2c_smbus_read_byte_data(i2c_ak8963_client, AK8963_REG_WHOAMI);
+  if(whoami != AK8963_WHOAMI_VALUE){
     printk(KERN_ALERT "OTAROVER: Invalid AK8963 sensor signature");
     return -ENODEV;
   } else {
@@ -101,22 +101,33 @@ int otarover_sensors_init()
   }
 
   //exit sleep mode and enable all sensors
-  i2c_smbus_write_byte_data(i2c_mpu9250_client, 0x6b, 0x01);
-  i2c_smbus_write_byte_data(i2c_mpu9250_client, 0x6c, 0x00);
-  i2c_smbus_write_byte_data(i2c_mpu9250_client, 0x1a, 0x03);
-  i2c_smbus_write_byte_data(i2c_mpu9250_client, 0x19, 0x04);
+  i2c_smbus_write_byte_data(i2c_mpu9250_client, MPU9250_REG_PWR_MGMT_1, 0x01);
+  i2c_smbus_write_byte_data(i2c_mpu9250_client, MPU9250_REG_PWR_MGMT_2, 0x00);
+  i2c_smbus_write_byte_data(i2c_mpu9250_client, MPU9250_REG_CONFIG, 0x03);
+  i2c_smbus_write_byte_data(i2c_mpu9250_client, MPU9250_REG_SMPLRT_DIV, 0x04);
 
-  value = i2c_smbus_read_byte_data(i2c_mpu9250_client, 0x1B);
+  value = i2c_smbus_read_byte_data(i2c_mpu9250_client, MPU9250_REG_GYRO_CONFIG);
   value = value & ~0x03;      // Clear Fchoice bits [1:0]
   value = value & ~0x18;      // Clear GFS bits [4:3]
   value = value | 0x00 << 3;  // Set full scale range for the gyro
-  i2c_smbus_write_byte_data(i2c_mpu9250_client, 0x1B, value);
+  i2c_smbus_write_byte_data(i2c_mpu9250_client, MPU9250_REG_GYRO_CONFIG, value);
+
+  value = i2c_smbus_read_byte_data(i2c_mpu9250_client, MPU9250_REG_ACCEL_CONFIG1);
+  value = value & ~0x03;      // Clear Fchoice bits [1:0]
+  value = value & ~0x18;      // Clear GFS bits [4:3]
+  value = value | 0x00 << 3;  // Set full scale range for the gyro
+  i2c_smbus_write_byte_data(i2c_mpu9250_client, MPU9250_REG_ACCEL_CONFIG1, value);
+
+  value = i2c_smbus_read_byte_data(i2c_mpu9250_client, MPU9250_REG_ACCEL_CONFIG2);
+  value = value & ~0x0F;      // Clear accel_fchoice_b (bit 3) and A_DLPFG (bits [2:0])
+  value = value | 0x03;       // Set accelerometer rate to 1 kHz and bandwidth to 41 Hz
+  i2c_smbus_write_byte_data(i2c_mpu9250_client, MPU9250_REG_ACCEL_CONFIG2, value);
 
   //enable interrupt - raw data ready
-  i2c_smbus_write_byte_data(i2c_mpu9250_client, 0x37, 0x12);
-  i2c_smbus_write_byte_data(i2c_mpu9250_client, 0x38, 0x01);
+  i2c_smbus_write_byte_data(i2c_mpu9250_client, MPU9250_REG_INT_PIN, 0x12);
+  i2c_smbus_write_byte_data(i2c_mpu9250_client, MPU9250_REG_INT_EN, 0x01);
 
-  i2c_smbus_write_byte_data(i2c_ak8963_client, 0x0A, 0x01 << 4 | 0x06);
+  i2c_smbus_write_byte_data(i2c_ak8963_client, AK8963_REG_CNTL1, 0x01 << 4 | 0x06);
 
   //IMU_INT - GPIO3_21 ((3*32)+21)
   irq_num = gpio_to_irq(117);
@@ -129,13 +140,8 @@ int otarover_sensors_init()
   return 0;
 }
 
-/** @brief The GPIO IRQ Handler function
- *  @param regs   h/w specific register values -- only really ever used for debugging.
- *  return returns IRQ_HANDLED if successful -- should return IRQ_NONE otherwise.
- */
 static irq_handler_t otarover_imu_irq_handler(unsigned int irq, void *dev_id, struct pt_regs *regs){
-  //otarover_sensors_update_temperature();
-  i2c_smbus_write_byte_data(i2c_mpu9250_client, 0x3a, 0x00);
+  i2c_smbus_write_byte_data(i2c_mpu9250_client, MPU9250_REG_INT_STATUS, 0x00);
   return (irq_handler_t) IRQ_HANDLED;
 }
 
@@ -166,9 +172,9 @@ static short int otarover_sensors_update_temperature()
   int16_t temperature;
   uint8_t value;
 
-  value = i2c_smbus_read_byte_data(i2c_mpu9250_client, 0x41);
+  value = i2c_smbus_read_byte_data(i2c_mpu9250_client, MPU9250_REG_TEMP_OUT_H);
   temperature = value<<8;
-  value = i2c_smbus_read_byte_data(i2c_mpu9250_client, 0x42);
+  value = i2c_smbus_read_byte_data(i2c_mpu9250_client, MPU9250_REG_TEMP_OUT_L);
   temperature |= value;
 
   sensor_data.temperature = (temperature/334) + 21;
@@ -183,19 +189,19 @@ static short int otarover_sensors_update_gyro()
   int16_t gyro_z;
   uint8_t value;
 
-  value = i2c_smbus_read_byte_data(i2c_mpu9250_client, 0x43);
+  value = i2c_smbus_read_byte_data(i2c_mpu9250_client, MPU9250_REG_GYRO_XOUT_H);
   gyro_x = value<<8;
-  value = i2c_smbus_read_byte_data(i2c_mpu9250_client, 0x44);
+  value = i2c_smbus_read_byte_data(i2c_mpu9250_client, MPU9250_REG_GYRO_XOUT_L);
   gyro_x |= value;
 
-  value = i2c_smbus_read_byte_data(i2c_mpu9250_client, 0x45);
+  value = i2c_smbus_read_byte_data(i2c_mpu9250_client, MPU9250_REG_GYRO_YOUT_H);
   gyro_y = value<<8;
-  value = i2c_smbus_read_byte_data(i2c_mpu9250_client, 0x46);
+  value = i2c_smbus_read_byte_data(i2c_mpu9250_client, MPU9250_REG_GYRO_YOUT_L);
   gyro_y |= value;
 
-  value = i2c_smbus_read_byte_data(i2c_mpu9250_client, 0x47);
+  value = i2c_smbus_read_byte_data(i2c_mpu9250_client, MPU9250_REG_GYRO_ZOUT_H);
   gyro_z = value<<8;
-  value = i2c_smbus_read_byte_data(i2c_mpu9250_client, 0x48);
+  value = i2c_smbus_read_byte_data(i2c_mpu9250_client, MPU9250_REG_GYRO_ZOUT_L);
   gyro_z |= value;
 
   sensor_data.gyro_x = gyro_x;
@@ -212,19 +218,19 @@ static short int otarover_sensors_update_accel()
   int16_t accel_z;
   uint8_t value;
 
-  value = i2c_smbus_read_byte_data(i2c_mpu9250_client, 0x3b);
+  value = i2c_smbus_read_byte_data(i2c_mpu9250_client, MPU9250_REG_ACCEL_XOUT_H);
   accel_x = value<<8;
-  value = i2c_smbus_read_byte_data(i2c_mpu9250_client, 0x3c);
+  value = i2c_smbus_read_byte_data(i2c_mpu9250_client, MPU9250_REG_ACCEL_XOUT_L);
   accel_x |= value;
 
-  value = i2c_smbus_read_byte_data(i2c_mpu9250_client, 0x3d);
+  value = i2c_smbus_read_byte_data(i2c_mpu9250_client, MPU9250_REG_ACCEL_YOUT_H);
   accel_y = value<<8;
-  value = i2c_smbus_read_byte_data(i2c_mpu9250_client, 0x3e);
+  value = i2c_smbus_read_byte_data(i2c_mpu9250_client, MPU9250_REG_ACCEL_YOUT_L);
   accel_y |= value;
 
-  value = i2c_smbus_read_byte_data(i2c_mpu9250_client, 0x3f);
+  value = i2c_smbus_read_byte_data(i2c_mpu9250_client, MPU9250_REG_ACCEL_ZOUT_H);
   accel_z = value<<8;
-  value = i2c_smbus_read_byte_data(i2c_mpu9250_client, 0x40);
+  value = i2c_smbus_read_byte_data(i2c_mpu9250_client, MPU9250_REG_ACCEL_ZOUT_L);
   accel_z |= value;
 
   sensor_data.accel_x = accel_x;
@@ -241,24 +247,24 @@ static short int otarover_sensors_update_mag()
   int16_t mag_z;
   uint8_t value;
 
-  value = i2c_smbus_read_byte_data(i2c_ak8963_client, 0x02) & 0x01;
+  value = i2c_smbus_read_byte_data(i2c_ak8963_client, AK8963_REG_ST1) & 0x01;
   if(value){
-    value = i2c_smbus_read_byte_data(i2c_ak8963_client, 0x03);
+    value = i2c_smbus_read_byte_data(i2c_ak8963_client, AK8963_REG_HXL);
     mag_x = value;
-    value = i2c_smbus_read_byte_data(i2c_ak8963_client, 0x04);
+    value = i2c_smbus_read_byte_data(i2c_ak8963_client, AK8963_REG_HXH);
     mag_x |= value<<8;
 
-    value = i2c_smbus_read_byte_data(i2c_ak8963_client, 0x05);
+    value = i2c_smbus_read_byte_data(i2c_ak8963_client, AK8963_REG_HYL);
     mag_y = value;
-    value = i2c_smbus_read_byte_data(i2c_ak8963_client, 0x06);
+    value = i2c_smbus_read_byte_data(i2c_ak8963_client, AK8963_REG_HYH);
     mag_y |= value<<8;
 
-    value = i2c_smbus_read_byte_data(i2c_ak8963_client, 0x07);
+    value = i2c_smbus_read_byte_data(i2c_ak8963_client, AK8963_REG_HZL);
     mag_z = value;
-    value = i2c_smbus_read_byte_data(i2c_ak8963_client, 0x08);
+    value = i2c_smbus_read_byte_data(i2c_ak8963_client, AK8963_REG_HZH);
     mag_z |= value<<8;
 
-    value = i2c_smbus_read_byte_data(i2c_ak8963_client, 0x09);
+    value = i2c_smbus_read_byte_data(i2c_ak8963_client, AK8963_REG_ST2);
     if(!(value & 0x08)){
       sensor_data.mag_x = mag_x;
       sensor_data.mag_y = mag_y;
