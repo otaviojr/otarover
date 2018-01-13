@@ -42,6 +42,7 @@ static struct option long_options[] =
   {"m2-speed",            optional_argument,  0, 'e'},
   {"m2-direction",        optional_argument,  0, 'f'},
   {"m2-config",           optional_argument,  0, 'g'},
+  {"sensors",             optional_argument,  0, 'i'},
   {"help",                optional_argument,  0, 'h'},
   {0, 0, 0, 0}
 };
@@ -49,6 +50,7 @@ static struct option long_options[] =
 int main(int argc, char** argv)
 {
   int ret, opt, opt_index, val;
+  sensor_info_t info;
   char* pend;
 
   otarover_context_t* otarover_context = otarover_init();
@@ -234,6 +236,28 @@ int main(int argc, char** argv)
               printf ("error setting option %s with value %s\n", long_options[opt_index].name, optarg);
             }
           }
+        }
+        break;
+
+      case 'i':
+        if(optarg == NULL){
+          ret = otarover_read_sensors(otarover_context, &info);
+          if(ret != 0) {
+            printf ("error getting option %s\n", long_options[opt_index].name);
+          } else {
+            printf ("temperature: %dC\n", info.temperature);
+            printf ("gyro-x: %d\n", info.gyro_x);
+            printf ("gyro-y: %d\n", info.gyro_y);
+            printf ("gyro-z: %d\n", info.gyro_z);
+            printf ("accel-x: %d\n", info.accel_x);
+            printf ("accel-y: %d\n", info.accel_y);
+            printf ("accel-z: %d\n", info.accel_z);
+            printf ("mag-x: %d\n", info.mag_x);
+            printf ("mag-y: %d\n", info.mag_y);
+            printf ("mag-z: %d\n", info.mag_z);
+          }
+        } else {
+            printf ("option %s is read-only\n", long_options[opt_index].name);
         }
         break;
 

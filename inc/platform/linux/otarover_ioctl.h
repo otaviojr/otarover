@@ -45,8 +45,8 @@
   #define OTAROVER_IOCTL_SET_M1_CONFIG      _IOW(OTAROVER_IOC_MAGIC, 12, long*)
   #define OTAROVER_IOCTL_GET_M2_CONFIG      _IOR(OTAROVER_IOC_MAGIC, 13, long*)
   #define OTAROVER_IOCTL_SET_M2_CONFIG      _IOW(OTAROVER_IOC_MAGIC, 14, long*)
-
-  #define OTAROVER_IOCTL_MAX_CMD            14
+  #define OTAROVER_IOCTL_READ_SENSORS       _IOR(OTAROVER_IOC_MAGIC, 15, long*)
+  #define OTAROVER_IOCTL_MAX_CMD            15
 
   #define OTAROVER_IOCTL_DC_MOTOR_ENABLE    1
   #define OTAROVER_IOCTL_DC_MOTOR_DISABLE   0
@@ -57,5 +57,18 @@
 
   #define OTAROVER_IOCTL_CONFIG_NORMAL      1
   #define OTAROVER_IOCTL_CONFIG_REVERSE     -1
+
+  typedef struct sensor_info {
+    int16_t temperature;
+    int16_t gyro_x;
+    int16_t gyro_y;
+    int16_t gyro_z;
+    int16_t accel_x;
+    int16_t accel_y;
+    int16_t accel_z;
+    int16_t mag_x;
+    int16_t mag_y;
+    int16_t mag_z;
+  } sensor_info_t;
 
 #endif //__OTAROVER_IOCTL_H__

@@ -29,7 +29,21 @@
 #ifndef __OTAROVER_BLUE_SENSORS_H__
 #define __OTAROVER_BLUE_SENSORS_H__
 
-  int otarover_init_sensors( void );
-  int otarover_end_sensors( void );
+  typedef struct sensor_data {
+    int16_t temperature;
+    int16_t gyro_x;
+    int16_t gyro_y;
+    int16_t gyro_z;
+    int16_t accel_x;
+    int16_t accel_y;
+    int16_t accel_z;
+    int16_t mag_x;
+    int16_t mag_y;
+    int16_t mag_z;
+  } sensor_data_t;
+
+  int otarover_sensors_init( void );
+  int otarover_sensors_end( void );
+  sensor_data_t* otarover_sensors_get_data( void );
 
 #endif //__OTAROVER_BLUE_SENSORS_H__

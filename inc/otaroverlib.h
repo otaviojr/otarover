@@ -28,6 +28,8 @@
 #ifndef __OTAROVER_LIB_H__
 #define __OTAROVER_LIB_H__
 
+#include "platform/linux/otarover_ioctl.h"
+
 #define  OTAROVER_DC_MOTOR1         1
 #define  OTAROVER_DC_MOTOR2         2
 #define  OTAROVER_DC_MOTOR3         3
@@ -57,5 +59,6 @@ extern int otarover_dc_motor_set_direction(otarover_context_t* context, int dir,
 extern int otarover_dc_motor_get_direction(otarover_context_t* context, int* dir, int motor);
 extern int otarover_dc_motor_set_config(otarover_context_t* context, int speed, int motor);
 extern int otarover_dc_motor_get_config(otarover_context_t* context, int* speed, int motor);
+extern int otarover_read_sensors(otarover_context_t* context, sensor_info_t* info);
 
 #endif //__OTAROVER_LIB_H__

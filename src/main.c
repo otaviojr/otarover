@@ -216,7 +216,7 @@ int main(int argc, char**argv)
   }
 
   while(1){
-    printf("Waiting for data...");
+    printf("Waiting for data...\n");
 
     if ((recv_len = recvfrom(s, buf, BUFFER_LEN, 0, (struct sockaddr *) &si_other, &slen)) == -1)
     {
@@ -224,7 +224,7 @@ int main(int argc, char**argv)
         break;
     }
 
-    printf("Received packet from %s:%d\n", inet_ntoa(si_other.sin_addr), ntohs(si_other.sin_port));
+    printf("Received packet from %s:%d with lent %d\n", inet_ntoa(si_other.sin_addr), ntohs(si_other.sin_port),  recv_len);
 
     if(!otarover_protocol_parse_message(buf, &message, recv_len)){
       printf("Ignoring invalid message\n");
@@ -234,10 +234,10 @@ int main(int argc, char**argv)
     if(message.message_type == OTAROVER_PROTOCOL_MSG_TYPE_MOV){
       printf("Processing MOV message\n");
       if(message.cmd == OTAROVER_PROTOCOL_CMD_DIRECTION){
-        printf("Changing Direction to %ld\n",message.value.int32_val);
+        printf("Changing Direction to %d\n",message.value.int32_val);
         current_direction = message.value.int32_val;
       } else if(message.cmd == OTAROVER_PROTOCOL_CMD_SPEED){
-        printf("Changing Speed to %ld\n", message.value.int32_val);
+        printf("Changing Speed to %d\n", message.value.int32_val);
         current_speed = message.value.int32_val;
       }
     } else {
@@ -247,9 +247,10 @@ int main(int argc, char**argv)
     (*strategy->set_course)(context, current_direction, current_speed);
 
     otarover_protocol_destroy_message(&message);
+
     //if (sendto(s, buf, recv_len, 0, (struct sockaddr*) &si_other, slen) == -1)
     //{
-    //  printf("Error sending data from socket\n");
+      //printf("Error sending data from socket\n");
     //}
   }
 

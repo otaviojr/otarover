@@ -31,12 +31,12 @@
 
 #include "otarover_protocol.h"
 
-int otarover_protocol_encode_int16(char** buffer, short int value)
+int otarover_protocol_encode_int16(char** buffer, int16_t value)
 {
   return 0;
 }
 
-int otarover_protocol_encode_int32(char** buffer, long int value)
+int otarover_protocol_encode_int32(char** buffer, int32_t value)
 {
   return 0;
 }
@@ -46,7 +46,7 @@ int otarover_protocol_encode_string(char** buffer, const char* value, size_t len
   return 0;
 }
 
-int otarover_protocol_decode_int16(const char* buffer, short int* value)
+int otarover_protocol_decode_int16(const char* buffer, int16_t* value)
 {
   *value = 0;
   *value |= buffer[0] << 8;
@@ -54,7 +54,7 @@ int otarover_protocol_decode_int16(const char* buffer, short int* value)
   return 2;
 }
 
-int otarover_protocol_decode_int32(const char* buffer, long int* value)
+int otarover_protocol_decode_int32(const char* buffer, int32_t* value)
 {
   *value = 0;
   *value |= buffer[0] << 24;
@@ -86,9 +86,9 @@ int otarover_protocol_parse_message(char* buffer, otarover_protocol_t* message, 
     return 0;
   }
 
-  count += otarover_protocol_decode_int16(&buffer[count], (short int*)&message->message_type);
-  count += otarover_protocol_decode_int16(&buffer[count], (short int*)&message->cmd);
-  count += otarover_protocol_decode_int16(&buffer[count], (short int*)&message->value_type);
+  count += otarover_protocol_decode_int16(&buffer[count], (int16_t*)&message->message_type);
+  count += otarover_protocol_decode_int16(&buffer[count], (int16_t*)&message->cmd);
+  count += otarover_protocol_decode_int16(&buffer[count], (int16_t*)&message->value_type);
 
   if(message->value_type == OTAROVER_PROTOCOL_VALUE_TYPE_INT16){
     count += otarover_protocol_decode_int16(&buffer[count], &message->value.int16_val);

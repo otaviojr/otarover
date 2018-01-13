@@ -35,7 +35,6 @@
 #include <sys/ioctl.h>
 
 #include "otaroverlib.h"
-#include "platform/linux/otarover_ioctl.h"
 
 #define DEVICE_FILE_NAME "/dev/otarover"
 
@@ -219,4 +218,10 @@ int otarover_dc_motor_get_config(otarover_context_t* context, int* config, int m
   }
 
   return ret;
+}
+
+int otarover_read_sensors(otarover_context_t* context, sensor_info_t* info)
+{
+  if(info == NULL) return -1;
+  return ioctl(context->dev_fd,  OTAROVER_IOCTL_READ_SENSORS, info);
 }

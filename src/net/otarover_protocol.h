@@ -47,24 +47,24 @@ typedef enum _otarover_protocol_cmd {
 } otarover_protocol_cmd_t;
 
 typedef struct _otarover_protocol {
-  long int magic;
-  long int message_length;
+  int32_t magic;
+  int32_t message_length;
   otarover_protocol_msg_type_t message_type;
   otarover_protocol_cmd_t cmd;
   otarover_protocol_value_type_t value_type;
   union _value {
-    long int int32_val;
-    short int int16_val;
+    int32_t int32_val;
+    int16_t int16_val;
     char* str_val;
   } value;
 } otarover_protocol_t;
 
-int otarover_protocol_encode_int16(char** buffer, short int value);
-int otarover_protocol_encode_int32(char** buffer, long int value);
+int otarover_protocol_encode_int16(char** buffer, int16_t value);
+int otarover_protocol_encode_int32(char** buffer, int32_t value);
 int otarover_protocol_encode_string(char** buffer, const char* value, size_t length);
 
-int otarover_protocol_decode_int16(const char* buffer, short int* value);
-int otarover_protocol_decode_int32(const char* buffer, long int* value);
+int otarover_protocol_decode_int16(const char* buffer, int16_t* value);
+int otarover_protocol_decode_int32(const char* buffer, int32_t* value);
 int otarover_protocol_decode_string(const char* buffer, char** value, size_t max_length);
 
 int otarover_protocol_parse_message(char* buffer, otarover_protocol_t* message, size_t max_length);

@@ -33,7 +33,6 @@
 #include <linux/uaccess.h>
 #include <linux/cdev.h>
 #include <linux/gpio.h>                 // Required for the GPIO functions
-#include <linux/interrupt.h>            // Required for the IRQ code
 #include <linux/kthread.h>              // Required for threads code
 
 #include <linux/delay.h>		            // sleep functions
@@ -117,6 +116,18 @@ static ssize_t m1_store_config(struct device *dev, struct device_attribute *attr
 static ssize_t m2_show_config(struct device *dev, struct device_attribute *attr, char *buf);
 static ssize_t m2_store_config(struct device *dev, struct device_attribute *attr, const char *buf, size_t count);
 
+static ssize_t show_temperature(struct device *dev, struct device_attribute *attr, char *buf);
+
+static ssize_t show_gyrox(struct device *dev, struct device_attribute *attr, char *buf);
+static ssize_t show_gyroy(struct device *dev, struct device_attribute *attr, char *buf);
+static ssize_t show_gyroz(struct device *dev, struct device_attribute *attr, char *buf);
+static ssize_t show_accelx(struct device *dev, struct device_attribute *attr, char *buf);
+static ssize_t show_accely(struct device *dev, struct device_attribute *attr, char *buf);
+static ssize_t show_accelz(struct device *dev, struct device_attribute *attr, char *buf);
+static ssize_t show_magx(struct device *dev, struct device_attribute *attr, char *buf);
+static ssize_t show_magy(struct device *dev, struct device_attribute *attr, char *buf);
+static ssize_t show_magz(struct device *dev, struct device_attribute *attr, char *buf);
+
 /** SYSFS ATTRIBUTES */
 static DEVICE_ATTR(enable,
                    0665,
@@ -153,9 +164,60 @@ static DEVICE_ATTR(m2_config,
                    m2_show_config,
                    m2_store_config);
 
+static DEVICE_ATTR(temperature,
+                  0444,
+                  show_temperature,
+                  NULL);
+
+static DEVICE_ATTR(gyro_x,
+                  0444,
+                  show_gyrox,
+                  NULL);
+
+static DEVICE_ATTR(gyro_y,
+                  0444,
+                  show_gyroy,
+                  NULL);
+
+static DEVICE_ATTR(gyro_z,
+                  0444,
+                  show_gyroz,
+                  NULL);
+
+static DEVICE_ATTR(accel_x,
+                  0444,
+                  show_accelx,
+                  NULL);
+
+static DEVICE_ATTR(accel_y,
+                  0444,
+                  show_accely,
+                  NULL);
+
+static DEVICE_ATTR(accel_z,
+                  0444,
+                  show_accelz,
+                  NULL);
+
+static DEVICE_ATTR(mag_x,
+                  0444,
+                  show_magx,
+                  NULL);
+
+static DEVICE_ATTR(mag_y,
+                  0444,
+                  show_magy,
+                  NULL);
+
+static DEVICE_ATTR(mag_z,
+                  0444,
+                  show_magz,
+                  NULL);
+
 static struct class *device_class;
 static struct device *dc_motors_device_object;
 static struct device *battery_device_object;
+static struct device *sensors_device_object;
 
 static dev_t dev;
 static struct cdev c_dev;
@@ -164,7 +226,6 @@ static struct device *char_device_object;
 static board_config_t board_config;
 
 /* functions declaration */
-static irq_handler_t otarover_irq_handler(unsigned int irq, void *dev_id, struct pt_regs *regs);
 static int heartbeat(void* arg);
 
 /** @brief The LKM initialization function
@@ -236,6 +297,13 @@ static int __init otarover_init(void)
       return PTR_ERR(battery_device_object);
    }
 
+   sensors_device_object = device_create(device_class, NULL, 2, NULL, "sensors");
+   if(IS_ERR(sensors_device_object))
+   {
+      printk(KERN_ALERT "OTAROVER: Failed to create sysfs device");
+      return PTR_ERR(sensors_device_object);
+   }
+
    result = device_create_file(dc_motors_device_object, &dev_attr_enable);
    if(result < 0)
    {
@@ -285,6 +353,76 @@ static int __init otarover_init(void)
       return result;
    }
 
+   result = device_create_file(sensors_device_object, &dev_attr_temperature);
+   if(result < 0)
+   {
+      printk(KERN_ALERT "OTAROVER: Failed creating temperature sysfs endpoint");
+      return result;
+   }
+
+   result = device_create_file(sensors_device_object, &dev_attr_gyro_x);
+   if(result < 0)
+   {
+      printk(KERN_ALERT "OTAROVER: Failed creating gyro_x sysfs endpoint");
+      return result;
+   }
+
+   result = device_create_file(sensors_device_object, &dev_attr_gyro_y);
+   if(result < 0)
+   {
+      printk(KERN_ALERT "OTAROVER: Failed creating gyro_y sysfs endpoint");
+      return result;
+   }
+
+   result = device_create_file(sensors_device_object, &dev_attr_gyro_z);
+   if(result < 0)
+   {
+      printk(KERN_ALERT "OTAROVER: Failed creating gyro_z sysfs endpoint");
+      return result;
+   }
+
+   result = device_create_file(sensors_device_object, &dev_attr_accel_x);
+   if(result < 0)
+   {
+      printk(KERN_ALERT "OTAROVER: Failed creating accel_x sysfs endpoint");
+      return result;
+   }
+
+   result = device_create_file(sensors_device_object, &dev_attr_accel_y);
+   if(result < 0)
+   {
+      printk(KERN_ALERT "OTAROVER: Failed creating accel_y sysfs endpoint");
+      return result;
+   }
+
+   result = device_create_file(sensors_device_object, &dev_attr_accel_z);
+   if(result < 0)
+   {
+      printk(KERN_ALERT "OTAROVER: Failed creating accel_z sysfs endpoint");
+      return result;
+   }
+
+   result = device_create_file(sensors_device_object, &dev_attr_mag_x);
+   if(result < 0)
+   {
+      printk(KERN_ALERT "OTAROVER: Failed creating mag_x sysfs endpoint");
+      return result;
+   }
+
+   result = device_create_file(sensors_device_object, &dev_attr_mag_y);
+   if(result < 0)
+   {
+      printk(KERN_ALERT "OTAROVER: Failed creating mag_y sysfs endpoint");
+      return result;
+   }
+
+   result = device_create_file(sensors_device_object, &dev_attr_mag_z);
+   if(result < 0)
+   {
+      printk(KERN_ALERT "OTAROVER: Failed creating mag_z sysfs endpoint");
+      return result;
+   }
+
    /* character device interdace */
    result = alloc_chrdev_region(&dev, FIRST_MINOR, MINOR_CNT, "otarover");
    if(result < 0)
@@ -312,23 +450,10 @@ static int __init otarover_init(void)
      return result;
    }
 
-   result = otarover_init_sensors();
+   result = otarover_sensors_init();
    if(result < 0){
      return result;
    }
-
-   // GPIO numbers and IRQ numbers are not the same! This function performs the mapping for us
-   // irqNumber = gpio_to_irq(gpioButton);
-   // printk(KERN_INFO "GPIO_TEST: The button is mapped to IRQ: %d\n", irqNumber);
-
-   // This next call requests an interrupt line
-   // result = request_irq(irqNumber,             // The interrupt number requested
-   //                      (irq_handler_t) ebbgpio_irq_handler, // The pointer to the handler function below
-   //                     IRQF_TRIGGER_RISING,   // Interrupt on rising edge (button press, not release)
-   //                     "ebb_gpio_handler",    // Used in /proc/interrupts to identify the owner
-   //                     NULL);                 // The *dev_id for shared interrupt lines, NULL is okay
-
-   //printk(KERN_INFO "GPIO_TEST: The interrupt request result is: %d\n", result);
 
    return result;
 }
@@ -347,6 +472,9 @@ static void __exit otarover_exit(void){
    device_remove_file(dc_motors_device_object, &dev_attr_m1_config);
    device_remove_file(dc_motors_device_object, &dev_attr_m2_config);
 
+   device_remove_file(sensors_device_object, &dev_attr_temperature);
+
+   device_destroy(device_class ,2);
    device_destroy(device_class ,1);
    device_destroy(device_class, 0);
    device_destroy(device_class, dev);
@@ -355,15 +483,14 @@ static void __exit otarover_exit(void){
    unregister_chrdev_region(dev,MINOR_CNT);
 
    otarover_release_board(&board_config);
-   otarover_end_sensors();
-   
+   otarover_sensors_end();
+
    /* stop heartbeat led */
    gpio_set_value(gpio_heartbeat_led, 0);
    gpio_unexport(gpio_heartbeat_led);
    gpio_free(gpio_heartbeat_led);
    kthread_stop(task);
 
-   //free_irq(irqNumber, NULL);               // Free the IRQ number, no *dev_id required in this case
    printk(KERN_INFO "OTAROVER: Goodbye from the LKM!\n");
 }
 
@@ -384,18 +511,6 @@ static int heartbeat(void* args)
    }
    printk(KERN_INFO "OTAROVER: Heartbeat thread has finished \n");
    return 0;
-}
-
-/** @brief The GPIO IRQ Handler function
- *  @param regs   h/w specific register values -- only really ever used for debugging.
- *  return returns IRQ_HANDLED if successful -- should return IRQ_NONE otherwise.
- */
-static irq_handler_t otarover_irq_handler(unsigned int irq, void *dev_id, struct pt_regs *regs){
-   //ledOn = !ledOn;                          // Invert the LED state on each button press
-   //gpio_set_value(gpioLED, ledOn);          // Set the physical LED accordingly
-   //printk(KERN_INFO "GPIO_TEST: Interrupt! (button state is %d)\n", gpio_get_value(gpioButton));
-   //numberPresses++;                         // Global counter, will be outputted when the module is unloaded
-   return (irq_handler_t) IRQ_HANDLED;      // Announce that the IRQ has been handled correctly
 }
 
 /* sysfs interface show/store functions */
@@ -559,6 +674,65 @@ static ssize_t m2_store_config(struct device *dev, struct device_attribute *attr
   return count;
 }
 
+static ssize_t show_temperature(struct device *dev, struct device_attribute *attr, char *buf)
+{
+  sensor_data_t* sensor_data = otarover_sensors_get_data();
+  return sprintf(buf,"%dC\n",sensor_data->temperature);
+}
+
+static ssize_t show_gyrox(struct device *dev, struct device_attribute *attr, char *buf){
+  sensor_data_t* sensor_data = otarover_sensors_get_data();
+  return sprintf(buf,"%d\n",sensor_data->gyro_x);
+}
+
+static ssize_t show_gyroy(struct device *dev, struct device_attribute *attr, char *buf)
+{
+  sensor_data_t* sensor_data = otarover_sensors_get_data();
+  return sprintf(buf,"%d\n",sensor_data->gyro_y);
+}
+
+static ssize_t show_gyroz(struct device *dev, struct device_attribute *attr, char *buf)
+{
+  sensor_data_t* sensor_data = otarover_sensors_get_data();
+  return sprintf(buf,"%d\n",sensor_data->gyro_z);
+}
+
+static ssize_t show_accelx(struct device *dev, struct device_attribute *attr, char *buf)
+{
+  sensor_data_t* sensor_data = otarover_sensors_get_data();
+  return sprintf(buf,"%d\n",sensor_data->accel_x);
+}
+
+static ssize_t show_accely(struct device *dev, struct device_attribute *attr, char *buf)
+{
+  sensor_data_t* sensor_data = otarover_sensors_get_data();
+  return sprintf(buf,"%d\n",sensor_data->accel_y);
+}
+
+static ssize_t show_accelz(struct device *dev, struct device_attribute *attr, char *buf)
+{
+  sensor_data_t* sensor_data = otarover_sensors_get_data();
+  return sprintf(buf,"%d\n",sensor_data->accel_z);
+}
+
+static ssize_t show_magx(struct device *dev, struct device_attribute *attr, char *buf)
+{
+  sensor_data_t* sensor_data = otarover_sensors_get_data();
+  return sprintf(buf,"%d\n",sensor_data->mag_x);
+}
+
+static ssize_t show_magy(struct device *dev, struct device_attribute *attr, char *buf)
+{
+  sensor_data_t* sensor_data = otarover_sensors_get_data();
+  return sprintf(buf,"%d\n",sensor_data->mag_y);
+}
+
+static ssize_t show_magz(struct device *dev, struct device_attribute *attr, char *buf)
+{
+  sensor_data_t* sensor_data = otarover_sensors_get_data();
+  return sprintf(buf,"%d\n",sensor_data->mag_z);
+}
+
 /* char device interface implementation */
 static int dev_open(struct inode* inodep, struct file* filep)
 {
@@ -575,6 +749,8 @@ static int dev_release(struct inode* inodep, struct file* filep)
 static long dev_ioctl(struct file* filep, unsigned int cmd, unsigned long arg)
 {
   long ret = 0;
+  sensor_data_t* sdata;
+  sensor_info_t sinfo;
 
   if (_IOC_TYPE(cmd) != OTAROVER_IOC_MAGIC) return -ENOTTY;
   if (_IOC_NR(cmd) > OTAROVER_IOCTL_MAX_CMD) return -ENOTTY;
@@ -652,6 +828,22 @@ static long dev_ioctl(struct file* filep, unsigned int cmd, unsigned long arg)
       break;
     case OTAROVER_IOCTL_GET_M2_CONFIG:
       ret = put_user(board_config.state.m2_config,(long*)arg);
+      break;
+    case OTAROVER_IOCTL_READ_SENSORS:
+      sdata = otarover_sensors_get_data();
+      sinfo. temperature = sdata->temperature;
+      sinfo.gyro_x = sdata->gyro_x;
+      sinfo.gyro_y = sdata->gyro_y;
+      sinfo.gyro_z = sdata->gyro_z;
+      sinfo.accel_x = sdata->accel_x;
+      sinfo.accel_y = sdata->accel_y;
+      sinfo.accel_z = sdata->accel_z;
+      sinfo.mag_x = sdata->mag_x;
+      sinfo.mag_y = sdata->mag_y;
+      sinfo.mag_z = sdata->mag_z;
+      if(copy_to_user((sensor_info_t*)arg, (sensor_info_t*)&sinfo, sizeof(sensor_info_t))){
+        return -EFAULT;
+      }
       break;
     default:
       return -ENOTTY;
