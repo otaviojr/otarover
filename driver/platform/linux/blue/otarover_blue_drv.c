@@ -37,10 +37,10 @@
 
 #include <linux/delay.h>		            // sleep functions
 
+#include "otarover_ioctl.h"
 #include "otarover_blue_drv.h"
 #include "otarover_blue_io.h"
 #include "otarover_blue_sensors.h"
-#include "otarover_ioctl.h"
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Otavio Ribeiro");
@@ -736,13 +736,11 @@ static ssize_t show_magz(struct device *dev, struct device_attribute *attr, char
 /* char device interface implementation */
 static int dev_open(struct inode* inodep, struct file* filep)
 {
-  printk(KERN_INFO "OTAROVER: dev file opened \n");
   return 0;
 }
 
 static int dev_release(struct inode* inodep, struct file* filep)
 {
-  printk(KERN_INFO "OTAROVER: dev file closed \n");
   return 0;
 }
 
@@ -750,7 +748,6 @@ static long dev_ioctl(struct file* filep, unsigned int cmd, unsigned long arg)
 {
   long ret = 0;
   sensor_data_t* sdata;
-  sensor_info_t sinfo;
 
   if (_IOC_TYPE(cmd) != OTAROVER_IOC_MAGIC) return -ENOTTY;
   if (_IOC_NR(cmd) > OTAROVER_IOCTL_MAX_CMD) return -ENOTTY;
@@ -831,17 +828,7 @@ static long dev_ioctl(struct file* filep, unsigned int cmd, unsigned long arg)
       break;
     case OTAROVER_IOCTL_READ_SENSORS:
       sdata = otarover_sensors_get_data();
-      sinfo. temperature = sdata->temperature;
-      sinfo.gyro_x = sdata->gyro_x;
-      sinfo.gyro_y = sdata->gyro_y;
-      sinfo.gyro_z = sdata->gyro_z;
-      sinfo.accel_x = sdata->accel_x;
-      sinfo.accel_y = sdata->accel_y;
-      sinfo.accel_z = sdata->accel_z;
-      sinfo.mag_x = sdata->mag_x;
-      sinfo.mag_y = sdata->mag_y;
-      sinfo.mag_z = sdata->mag_z;
-      if(copy_to_user((sensor_info_t*)arg, (sensor_info_t*)&sinfo, sizeof(sensor_info_t))){
+      if(copy_to_user((sensor_data_t*)arg, (sensor_data_t*)sdata, sizeof(sensor_data_t))){
         return -EFAULT;
       }
       break;

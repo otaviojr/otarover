@@ -27,8 +27,10 @@
  */
 
 #include <linux/kernel.h>
+#include <linux/kthread.h>              // Required for threads code
 #include <linux/interrupt.h>            // Required for the IRQ code
 #include <linux/gpio.h>                 // Required for the GPIO functions
+#include <linux/delay.h>		            // sleep functions
 #include <linux/i2c.h>
 
 #include "otarover_blue_sensors.h"
@@ -37,7 +39,13 @@ struct i2c_adapter* i2c_dev;
 struct i2c_client* i2c_mpu9250_client;
 struct i2c_client* i2c_ak8963_client;
 
-uint8_t mag_cal[3];
+/* Read sensor task */
+static struct task_struct *task;
+static int otarover_read_sensors(void* arg);
+
+static volatile bool should_read = false;
+
+int8_t mag_sens[3];
 
 static struct i2c_board_info board_info_mpu9250[] =  {
   {
@@ -56,6 +64,10 @@ static short int otarover_sensors_update_temperature( void );
 static short int otarover_sensors_update_gyro( void );
 static short int otarover_sensors_update_accel( void );
 static short int otarover_sensors_update_mag( void );
+
+static int otarover_sensors_calibrate_gyro( void );
+static int otarover_sensors_calibrate_accel( void );
+static int otarover_sensors_calibrate_mag( void );
 
 static sensor_data_t sensor_data;
 
@@ -92,14 +104,6 @@ int otarover_sensors_init()
     printk(KERN_INFO "OTAROVER: Found a valid MPU9250 sensor on i2c2");
   }
 
-  whoami = i2c_smbus_read_byte_data(i2c_ak8963_client, AK8963_REG_WHOAMI);
-  if(whoami != AK8963_WHOAMI_VALUE){
-    printk(KERN_ALERT "OTAROVER: Invalid AK8963 sensor signature");
-    return -ENODEV;
-  } else {
-    printk(KERN_INFO "OTAROVER: Found a valid AK8963 sensor on i2c2");
-  }
-
   //exit sleep mode and enable all sensors
   i2c_smbus_write_byte_data(i2c_mpu9250_client, MPU9250_REG_PWR_MGMT_1, 0x01);
   i2c_smbus_write_byte_data(i2c_mpu9250_client, MPU9250_REG_PWR_MGMT_2, 0x00);
@@ -108,14 +112,11 @@ int otarover_sensors_init()
 
   value = i2c_smbus_read_byte_data(i2c_mpu9250_client, MPU9250_REG_GYRO_CONFIG);
   value = value & ~0x03;      // Clear Fchoice bits [1:0]
-  value = value & ~0x18;      // Clear GFS bits [4:3]
-  value = value | 0x00 << 3;  // Set full scale range for the gyro
+  value = value & ~0x18;      // full scale select 250dps
   i2c_smbus_write_byte_data(i2c_mpu9250_client, MPU9250_REG_GYRO_CONFIG, value);
 
   value = i2c_smbus_read_byte_data(i2c_mpu9250_client, MPU9250_REG_ACCEL_CONFIG1);
-  value = value & ~0x03;      // Clear Fchoice bits [1:0]
-  value = value & ~0x18;      // Clear GFS bits [4:3]
-  value = value | 0x00 << 3;  // Set full scale range for the gyro
+  value = value | 0x18;      // 16G
   i2c_smbus_write_byte_data(i2c_mpu9250_client, MPU9250_REG_ACCEL_CONFIG1, value);
 
   value = i2c_smbus_read_byte_data(i2c_mpu9250_client, MPU9250_REG_ACCEL_CONFIG2);
@@ -127,6 +128,18 @@ int otarover_sensors_init()
   i2c_smbus_write_byte_data(i2c_mpu9250_client, MPU9250_REG_INT_PIN, 0x12);
   i2c_smbus_write_byte_data(i2c_mpu9250_client, MPU9250_REG_INT_EN, 0x01);
 
+  otarover_sensors_calibrate_gyro();
+  otarover_sensors_calibrate_accel();
+
+  whoami = i2c_smbus_read_byte_data(i2c_ak8963_client, AK8963_REG_WHOAMI);
+  if(whoami != AK8963_WHOAMI_VALUE){
+    printk(KERN_ALERT "OTAROVER: Invalid AK8963 sensor signature (0x%x)", whoami);
+    return -ENODEV;
+  } else {
+    printk(KERN_INFO "OTAROVER: Found a valid AK8963 sensor on i2c2");
+  }
+
+  otarover_sensors_calibrate_mag();
   i2c_smbus_write_byte_data(i2c_ak8963_client, AK8963_REG_CNTL1, 0x01 << 4 | 0x06);
 
   //IMU_INT - GPIO3_21 ((3*32)+21)
@@ -137,10 +150,40 @@ int otarover_sensors_init()
                        "otarover_imu",
                        NULL);
 
+   /* heartbeat task */
+   task = kthread_run(otarover_read_sensors, NULL, "otarover_sensors");
+   if(IS_ERR(task))
+   {
+      printk(KERN_ALERT "OTAROVER: Failed to create heartbeat task");
+      return PTR_ERR(task);
+   }
+
+
+  return 0;
+}
+
+static int otarover_read_sensors(void* args)
+{
+  printk(KERN_INFO "OTAROVER: Read Sensor thread has started running \n");
+  while(!kthread_should_stop())
+  {
+    if(should_read == true) {
+      set_current_state(TASK_RUNNING);
+      otarover_sensors_update_temperature();
+      otarover_sensors_update_gyro();
+      otarover_sensors_update_accel();
+      otarover_sensors_update_mag();
+      set_current_state(TASK_INTERRUPTIBLE);
+      should_read = false;
+    }
+    msleep(100);
+  }
+  printk(KERN_INFO "OTAROVER: Read  Sensor thread has finished \n");
   return 0;
 }
 
 static irq_handler_t otarover_imu_irq_handler(unsigned int irq, void *dev_id, struct pt_regs *regs){
+  should_read = true;
   i2c_smbus_write_byte_data(i2c_mpu9250_client, MPU9250_REG_INT_STATUS, 0x00);
   return (irq_handler_t) IRQ_HANDLED;
 }
@@ -148,6 +191,8 @@ static irq_handler_t otarover_imu_irq_handler(unsigned int irq, void *dev_id, st
 int otarover_sensors_end()
 {
   int irq_num;
+
+  kthread_stop(task);
 
   irq_num = gpio_to_irq(117);
   free_irq(irq_num, NULL);
@@ -160,10 +205,6 @@ int otarover_sensors_end()
 
 sensor_data_t* otarover_sensors_get_data( void )
 {
-  otarover_sensors_update_temperature();
-  otarover_sensors_update_gyro();
-  otarover_sensors_update_accel();
-  otarover_sensors_update_mag();
   return &sensor_data;
 }
 
@@ -245,31 +286,94 @@ static short int otarover_sensors_update_mag()
   int16_t mag_x;
   int16_t mag_y;
   int16_t mag_z;
-  uint8_t value;
+  int8_t value;
+  int32_t correction;
 
   value = i2c_smbus_read_byte_data(i2c_ak8963_client, AK8963_REG_ST1) & 0x01;
   if(value){
-    value = i2c_smbus_read_byte_data(i2c_ak8963_client, AK8963_REG_HXL);
-    mag_x = value;
     value = i2c_smbus_read_byte_data(i2c_ak8963_client, AK8963_REG_HXH);
-    mag_x |= value<<8;
+    mag_x = value<<8;
+    value = i2c_smbus_read_byte_data(i2c_ak8963_client, AK8963_REG_HXL);
+    mag_x |= value;
 
-    value = i2c_smbus_read_byte_data(i2c_ak8963_client, AK8963_REG_HYL);
-    mag_y = value;
     value = i2c_smbus_read_byte_data(i2c_ak8963_client, AK8963_REG_HYH);
-    mag_y |= value<<8;
+    mag_y = value<<8;
+    value = i2c_smbus_read_byte_data(i2c_ak8963_client, AK8963_REG_HYL);
+    mag_y |= value;
 
-    value = i2c_smbus_read_byte_data(i2c_ak8963_client, AK8963_REG_HZL);
-    mag_z = value;
     value = i2c_smbus_read_byte_data(i2c_ak8963_client, AK8963_REG_HZH);
-    mag_z |= value<<8;
+    mag_z = value<<8;
+    value = i2c_smbus_read_byte_data(i2c_ak8963_client, AK8963_REG_HZL);
+    mag_z |= value;
 
     value = i2c_smbus_read_byte_data(i2c_ak8963_client, AK8963_REG_ST2);
     if(!(value & 0x08)){
-      sensor_data.mag_x = mag_x;
-      sensor_data.mag_y = mag_y;
-      sensor_data.mag_z = mag_z;
+      correction = (mag_sens[0]-128) * 65535;
+      correction /=2;
+      correction /=128;
+      correction += 65535;
+      sensor_data.mag_x = (mag_x * correction) / 65535;
+      correction = (mag_sens[1]-128) * 65535;
+      correction /=2;
+      correction /=128;
+      correction += 65535;
+      sensor_data.mag_y = (mag_y * correction) / 65535;
+      correction = (mag_sens[2]-128) * 65535;
+      correction /=2;
+      correction /=128;
+      correction += 65535;
+      sensor_data.mag_z = (mag_z * correction) / 65535;
     }
   }
+  return 0;
+}
+
+static int otarover_sensors_calibrate_gyro( void )
+{
+  int x;
+  int16_t gyro_x[2] = {0, 0};
+  int16_t gyro_y[2] = {0, 0};
+  int16_t gyro_z[2] = {0, 0};
+
+  int16_t gyro_x_bias, gyro_y_bias, gyro_z_bias;
+
+  for(x = 0; x < 22; x++){
+    otarover_sensors_update_gyro();
+
+    if(sensor_data.gyro_x < gyro_x[0] || gyro_x[0] == 0) gyro_x[0] = sensor_data.gyro_x;
+    if(sensor_data.gyro_x > gyro_x[1] || gyro_x[1] == 0) gyro_x[1] = sensor_data.gyro_x;
+    if(sensor_data.gyro_y < gyro_y[0] || gyro_y[0] == 0) gyro_y[0] = sensor_data.gyro_y;
+    if(sensor_data.gyro_y > gyro_y[1] || gyro_y[1] == 0) gyro_y[1] = sensor_data.gyro_y;
+    if(sensor_data.gyro_z < gyro_z[0] || gyro_z[0] == 0) gyro_z[0] = sensor_data.gyro_z;
+    if(sensor_data.gyro_z > gyro_z[1] || gyro_z[1] == 0) gyro_z[1] = sensor_data.gyro_z;
+  }
+
+  gyro_x_bias = (gyro_x[1] - gyro_x[0]);
+  gyro_y_bias = (gyro_y[1] - gyro_y[0]);
+  gyro_z_bias = (gyro_z[1] - gyro_z[0]);
+
+  i2c_smbus_write_byte_data(i2c_mpu9250_client, MPU9250_REG_X_OFFS_USER_H, (gyro_x_bias >> 8)&0xFF);
+  i2c_smbus_write_byte_data(i2c_mpu9250_client, MPU9250_REG_X_OFFS_USER_L, gyro_x_bias&0xFF);
+  i2c_smbus_write_byte_data(i2c_mpu9250_client, MPU9250_REG_Y_OFFS_USER_H, (gyro_y_bias >> 8)&0xFF);
+  i2c_smbus_write_byte_data(i2c_mpu9250_client, MPU9250_REG_Y_OFFS_USER_L, gyro_y_bias&0xFF);
+  i2c_smbus_write_byte_data(i2c_mpu9250_client, MPU9250_REG_Z_OFFS_USER_H, (gyro_z_bias >> 8)&0xFF);
+  i2c_smbus_write_byte_data(i2c_mpu9250_client, MPU9250_REG_Z_OFFS_USER_L, gyro_z_bias&0xFF);
+
+  return 0;
+}
+
+static int otarover_sensors_calibrate_accel( void )
+{
+  //TODO
+  return 0;
+}
+
+static int otarover_sensors_calibrate_mag( void )
+{
+  //Fuse ROM access mode
+  i2c_smbus_write_byte_data(i2c_ak8963_client, AK8963_REG_CNTL1, 0b11111);
+  mag_sens[0] = i2c_smbus_read_byte_data(i2c_ak8963_client, AK8963_REG_ASAX);
+  mag_sens[1] = i2c_smbus_read_byte_data(i2c_ak8963_client, AK8963_REG_ASAY);
+  mag_sens[2] = i2c_smbus_read_byte_data(i2c_ak8963_client, AK8963_REG_ASAZ);
   return 0;
 }

@@ -31,7 +31,11 @@
 #include <unistd.h>
 #include <getopt.h>
 
+#include <math.h>
+
 #include "otaroverlib.h"
+
+#define PI 3.14159265
 
 static struct option long_options[] =
 {
@@ -50,6 +54,7 @@ static struct option long_options[] =
 int main(int argc, char** argv)
 {
   int ret, opt, opt_index, val;
+  float north;
   sensor_info_t info;
   char* pend;
 
@@ -246,15 +251,19 @@ int main(int argc, char** argv)
             printf ("error getting option %s\n", long_options[opt_index].name);
           } else {
             printf ("temperature: %dC\n", info.temperature);
-            printf ("gyro-x: %d\n", info.gyro_x);
-            printf ("gyro-y: %d\n", info.gyro_y);
-            printf ("gyro-z: %d\n", info.gyro_z);
-            printf ("accel-x: %d\n", info.accel_x);
-            printf ("accel-y: %d\n", info.accel_y);
-            printf ("accel-z: %d\n", info.accel_z);
-            printf ("mag-x: %d\n", info.mag_x);
-            printf ("mag-y: %d\n", info.mag_y);
-            printf ("mag-z: %d\n", info.mag_z);
+            printf ("gyro-x: %.1f\n", info.gyro_x);
+            printf ("gyro-y: %.1f\n", info.gyro_y);
+            printf ("gyro-z: %.1f\n", info.gyro_z);
+            printf ("accel-x: %.1f\n", info.accel_x);
+            printf ("accel-y: %.1f\n", info.accel_y);
+            printf ("accel-z: %.1f\n", info.accel_z);
+            printf ("mag-x: %.1f\n", info.mag_x);
+            printf ("mag-y: %.1f\n", info.mag_y);
+            printf ("mag-z: %.1f\n", info.mag_z);
+            north = atan2(info.mag_y, info.mag_x) * (180/PI);
+            if(north < 0) north += 360;
+            if(north > 360) north -= 360;
+            printf ("mag-north: %.1f\n", north);
           }
         } else {
             printf ("option %s is read-only\n", long_options[opt_index].name);

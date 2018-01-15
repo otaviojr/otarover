@@ -38,6 +38,21 @@
 
 #define DEVICE_FILE_NAME "/dev/otarover"
 
+// Gravit force
+float gravity = 9.80665f;
+// Range per digit @ 16G
+float accel_range_per_digit = 0.0004882f;
+// 250dps scale
+float gyrp_scale = 131.0f;
+
+/*
+	Range per digit list    Range register list
+	-> 2G: 0.000061f - 2G(0b00)
+	-> 4G: 0.000122f - 4G(0b01)
+	-> 8G: 0.000244f - 8G(0b10)
+	-> 16G: 0.0004882f - 16G(0b11)
+*/
+
 otarover_context_t* otarover_init()
 {
   otarover_context_t* context = (otarover_context_t*)malloc(sizeof(otarover_context_t));
@@ -222,6 +237,21 @@ int otarover_dc_motor_get_config(otarover_context_t* context, int* config, int m
 
 int otarover_read_sensors(otarover_context_t* context, sensor_info_t* info)
 {
+  int ret;
+  sensor_data_t sdata;
   if(info == NULL) return -1;
-  return ioctl(context->dev_fd,  OTAROVER_IOCTL_READ_SENSORS, info);
+  ret  = ioctl(context->dev_fd,  OTAROVER_IOCTL_READ_SENSORS, &sdata);
+
+  info->temperature = sdata.temperature;
+  info->gyro_x = sdata.gyro_x/gyrp_scale;
+  info->gyro_y = sdata.gyro_y/gyrp_scale;
+  info->gyro_z = sdata.gyro_z/gyrp_scale;
+  info->accel_x = sdata.accel_x * accel_range_per_digit * gravity;
+  info->accel_y = sdata.accel_y * accel_range_per_digit * gravity;
+  info->accel_z = sdata.accel_z * accel_range_per_digit * gravity;
+  info->mag_x = sdata.mag_x;
+  info->mag_y = sdata.mag_y;
+  info->mag_z = sdata.mag_z;
+
+  return ret;
 }

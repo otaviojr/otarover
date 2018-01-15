@@ -29,6 +29,8 @@
 #ifndef __OTAROVER_BLUE_SENSORS_H__
 #define __OTAROVER_BLUE_SENSORS_H__
 
+  #include "otarover_ioctl.h"
+
   #define MPU9250_ADDRESS                   0x68
   #define AK8963_ADDRESS                    0x0C
 
@@ -161,19 +163,6 @@
   #define AK8963_REG_ASAX                   0x10
   #define AK8963_REG_ASAY                   0x11
   #define AK8963_REG_ASAZ                   0x12
-
-  typedef struct sensor_data {
-    int16_t temperature;
-    int16_t gyro_x;
-    int16_t gyro_y;
-    int16_t gyro_z;
-    int16_t accel_x;
-    int16_t accel_y;
-    int16_t accel_z;
-    int16_t mag_x;
-    int16_t mag_y;
-    int16_t mag_z;
-  } sensor_data_t;
 
   int otarover_sensors_init( void );
   int otarover_sensors_end( void );

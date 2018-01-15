@@ -49,6 +49,19 @@ typedef struct _otarover_context{
   int dev_fd;
 } otarover_context_t;
 
+typedef struct sensor_info {
+  int16_t temperature;
+  float gyro_x;
+  float gyro_y;
+  float gyro_z;
+  float accel_x;
+  float accel_y;
+  float accel_z;
+  float mag_x;
+  float mag_y;
+  float mag_z;
+} sensor_info_t;
+
 extern otarover_context_t* otarover_init();
 extern void otarover_close(otarover_context_t* context);
 extern int otarover_dc_motor_set_enable(otarover_context_t* context, int enable);

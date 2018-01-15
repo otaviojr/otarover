@@ -58,7 +58,7 @@
   #define OTAROVER_IOCTL_CONFIG_NORMAL      1
   #define OTAROVER_IOCTL_CONFIG_REVERSE     -1
 
-  typedef struct sensor_info {
+  typedef struct sensor_data {
     int16_t temperature;
     int16_t gyro_x;
     int16_t gyro_y;
@@ -69,6 +69,6 @@
     int16_t mag_x;
     int16_t mag_y;
     int16_t mag_z;
-  } sensor_info_t;
+  } sensor_data_t;
 
 #endif //__OTAROVER_IOCTL_H__

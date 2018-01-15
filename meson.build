@@ -92,6 +92,7 @@ otarover_cli_sources = [
 ]
 
 otarover_cli_deps = [
+  mathlib_dep
 ]
 
 static_lib = static_library('otarover', otarover_lib_sources, include_directories: incdir)
