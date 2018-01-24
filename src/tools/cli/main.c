@@ -29,6 +29,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 #include <getopt.h>
 
 #include <math.h>
@@ -260,9 +262,12 @@ int main(int argc, char** argv)
             printf ("mag-x: %.1f\n", info.mag_x);
             printf ("mag-y: %.1f\n", info.mag_y);
             printf ("mag-z: %.1f\n", info.mag_z);
+
             north = atan2(info.mag_y, info.mag_x) * (180/PI);
-            if(north < 0) north += 360;
-            if(north > 360) north -= 360;
+
+            if(north < 0) north = north + 360;
+            if(north > 360) north = 360 - north;
+
             printf ("mag-north: %.1f\n", north);
           }
         } else {
