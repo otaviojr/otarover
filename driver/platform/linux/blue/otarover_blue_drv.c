@@ -854,7 +854,10 @@ static long dev_ioctl(struct file* filep, unsigned int cmd, unsigned long arg)
       break;
 
     case OTAROVER_IOCTL_SET_SENSOR_OFFSETS:
-      //TODO: TODO
+      if(copy_from_user((sensor_offset_t*)&sensor_offset, (sensor_offset_t*)arg, sizeof(sensor_offset_t))){
+        return -EFAULT;
+      }
+      otarover_sensors_set_offset(&sensor_offset);
       break;
 
     case OTAROVER_IOCTL_READ_SENSORS:

@@ -168,6 +168,7 @@
   int otarover_sensors_end( void );
   int otarover_sensors_get_data(sensor_data_t* data );
   int otarover_sensors_get_offset(sensor_offset_t* data );
+  int otarover_sensors_set_offset(sensor_offset_t* data );
   int otarover_sensors_set_calibration(sensor_calibration_t* data);
   int otarover_sensors_get_calibration(sensor_calibration_t* data);
 #endif //__OTAROVER_BLUE_SENSORS_H__

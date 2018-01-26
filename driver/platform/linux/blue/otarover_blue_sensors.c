@@ -282,6 +282,22 @@ int otarover_sensors_get_offset(sensor_offset_t* data )
   return 0;
 }
 
+int otarover_sensors_set_offset(sensor_offset_t* data )
+{
+  mag_bias[0] = data->mag_bias_x;
+  mag_bias[1] = data->mag_bias_y;
+  mag_bias[2] = data->mag_bias_z;
+  mag_scale[0] = data->mag_scale_x;
+  mag_scale[1] = data->mag_scale_y;
+  mag_scale[2] = data->mag_scale_z;
+  gyro_bias[0] = data->gyro_bias_x;
+  gyro_bias[1] = data->gyro_bias_y;
+  gyro_bias[2] = data->gyro_bias_z;
+
+  otarover_sensors_write_gyro_bias();
+
+  return 0;
+}
 
 static short int otarover_sensors_update_temperature()
 {
