@@ -676,61 +676,71 @@ static ssize_t m2_store_config(struct device *dev, struct device_attribute *attr
 
 static ssize_t show_temperature(struct device *dev, struct device_attribute *attr, char *buf)
 {
-  sensor_data_t* sensor_data = otarover_sensors_get_data();
-  return sprintf(buf,"%dC\n",sensor_data->temperature);
+  sensor_data_t sensor_data;
+  otarover_sensors_get_data(&sensor_data);
+  return sprintf(buf,"%dC\n",sensor_data.temperature);
 }
 
 static ssize_t show_gyrox(struct device *dev, struct device_attribute *attr, char *buf){
-  sensor_data_t* sensor_data = otarover_sensors_get_data();
-  return sprintf(buf,"%d\n",sensor_data->gyro_x);
+  sensor_data_t sensor_data;
+  otarover_sensors_get_data(&sensor_data);
+  return sprintf(buf,"%d\n",sensor_data.gyro_x);
 }
 
 static ssize_t show_gyroy(struct device *dev, struct device_attribute *attr, char *buf)
 {
-  sensor_data_t* sensor_data = otarover_sensors_get_data();
-  return sprintf(buf,"%d\n",sensor_data->gyro_y);
+  sensor_data_t sensor_data;
+  otarover_sensors_get_data(&sensor_data);
+  return sprintf(buf,"%d\n",sensor_data.gyro_y);
 }
 
 static ssize_t show_gyroz(struct device *dev, struct device_attribute *attr, char *buf)
 {
-  sensor_data_t* sensor_data = otarover_sensors_get_data();
-  return sprintf(buf,"%d\n",sensor_data->gyro_z);
+  sensor_data_t sensor_data;
+  otarover_sensors_get_data(&sensor_data);
+  return sprintf(buf,"%d\n",sensor_data.gyro_z);
 }
 
 static ssize_t show_accelx(struct device *dev, struct device_attribute *attr, char *buf)
 {
-  sensor_data_t* sensor_data = otarover_sensors_get_data();
-  return sprintf(buf,"%d\n",sensor_data->accel_x);
+  sensor_data_t sensor_data;
+  otarover_sensors_get_data(&sensor_data);
+  return sprintf(buf,"%d\n",sensor_data.accel_x);
 }
 
 static ssize_t show_accely(struct device *dev, struct device_attribute *attr, char *buf)
 {
-  sensor_data_t* sensor_data = otarover_sensors_get_data();
-  return sprintf(buf,"%d\n",sensor_data->accel_y);
+  sensor_data_t sensor_data;
+  otarover_sensors_get_data(&sensor_data);
+  return sprintf(buf,"%d\n",sensor_data.accel_y);
 }
 
 static ssize_t show_accelz(struct device *dev, struct device_attribute *attr, char *buf)
 {
-  sensor_data_t* sensor_data = otarover_sensors_get_data();
-  return sprintf(buf,"%d\n",sensor_data->accel_z);
+  sensor_data_t sensor_data;
+  otarover_sensors_get_data(&sensor_data);
+  return sprintf(buf,"%d\n",sensor_data.accel_z);
 }
 
 static ssize_t show_magx(struct device *dev, struct device_attribute *attr, char *buf)
 {
-  sensor_data_t* sensor_data = otarover_sensors_get_data();
-  return sprintf(buf,"%d\n",sensor_data->mag_x);
+  sensor_data_t sensor_data;
+  otarover_sensors_get_data(&sensor_data);
+  return sprintf(buf,"%d\n",sensor_data.mag_x);
 }
 
 static ssize_t show_magy(struct device *dev, struct device_attribute *attr, char *buf)
 {
-  sensor_data_t* sensor_data = otarover_sensors_get_data();
-  return sprintf(buf,"%d\n",sensor_data->mag_y);
+  sensor_data_t sensor_data;
+  otarover_sensors_get_data(&sensor_data);
+  return sprintf(buf,"%d\n",sensor_data.mag_y);
 }
 
 static ssize_t show_magz(struct device *dev, struct device_attribute *attr, char *buf)
 {
-  sensor_data_t* sensor_data = otarover_sensors_get_data();
-  return sprintf(buf,"%d\n",sensor_data->mag_z);
+  sensor_data_t sensor_data;
+  otarover_sensors_get_data(&sensor_data);
+  return sprintf(buf,"%d\n",sensor_data.mag_z);
 }
 
 /* char device interface implementation */
@@ -747,7 +757,9 @@ static int dev_release(struct inode* inodep, struct file* filep)
 static long dev_ioctl(struct file* filep, unsigned int cmd, unsigned long arg)
 {
   long ret = 0;
-  sensor_data_t* sdata;
+  sensor_data_t sdata;
+  sensor_calibration_t calibration_data;
+  sensor_offset_t sensor_offset;
 
   if (_IOC_TYPE(cmd) != OTAROVER_IOC_MAGIC) return -ENOTTY;
   if (_IOC_NR(cmd) > OTAROVER_IOCTL_MAX_CMD) return -ENOTTY;
@@ -826,12 +838,32 @@ static long dev_ioctl(struct file* filep, unsigned int cmd, unsigned long arg)
     case OTAROVER_IOCTL_GET_M2_CONFIG:
       ret = put_user(board_config.state.m2_config,(long*)arg);
       break;
-    case OTAROVER_IOCTL_READ_SENSORS:
-      sdata = otarover_sensors_get_data();
-      if(copy_to_user((sensor_data_t*)arg, (sensor_data_t*)sdata, sizeof(sensor_data_t))){
+
+    case OTAROVER_IOCTL_CALIBRATE_SENSORS:
+      if(copy_from_user((sensor_calibration_t*)&calibration_data, (sensor_calibration_t*)arg, sizeof(sensor_calibration_t))){
+        return -EFAULT;
+      }
+      otarover_sensors_set_calibration(&calibration_data);
+      break;
+
+    case OTAROVER_IOCTL_GET_SENSOR_OFFSETS:
+      otarover_sensors_get_offset(&sensor_offset);
+      if(copy_to_user((sensor_offset_t*)arg, (sensor_offset_t*)&sensor_offset, sizeof(sensor_offset_t))){
         return -EFAULT;
       }
       break;
+
+    case OTAROVER_IOCTL_SET_SENSOR_OFFSETS:
+      //TODO: TODO
+      break;
+
+    case OTAROVER_IOCTL_READ_SENSORS:
+      otarover_sensors_get_data(&sdata);
+      if(copy_to_user((sensor_data_t*)arg, (sensor_data_t*)&sdata, sizeof(sensor_data_t))){
+        return -EFAULT;
+      }
+      break;
+
     default:
       return -ENOTTY;
   }

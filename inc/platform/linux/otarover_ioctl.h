@@ -45,8 +45,11 @@
   #define OTAROVER_IOCTL_SET_M1_CONFIG      _IOW(OTAROVER_IOC_MAGIC, 12, long*)
   #define OTAROVER_IOCTL_GET_M2_CONFIG      _IOR(OTAROVER_IOC_MAGIC, 13, long*)
   #define OTAROVER_IOCTL_SET_M2_CONFIG      _IOW(OTAROVER_IOC_MAGIC, 14, long*)
-  #define OTAROVER_IOCTL_READ_SENSORS       _IOR(OTAROVER_IOC_MAGIC, 15, long*)
-  #define OTAROVER_IOCTL_MAX_CMD            15
+  #define OTAROVER_IOCTL_CALIBRATE_SENSORS  _IOR(OTAROVER_IOC_MAGIC, 15, long*)
+  #define OTAROVER_IOCTL_GET_SENSOR_OFFSETS _IOR(OTAROVER_IOC_MAGIC, 16, long*)
+  #define OTAROVER_IOCTL_SET_SENSOR_OFFSETS _IOR(OTAROVER_IOC_MAGIC, 17, long*)
+  #define OTAROVER_IOCTL_READ_SENSORS       _IOR(OTAROVER_IOC_MAGIC, 18, long*)
+  #define OTAROVER_IOCTL_MAX_CMD            18
 
   #define OTAROVER_IOCTL_DC_MOTOR_ENABLE    1
   #define OTAROVER_IOCTL_DC_MOTOR_DISABLE   0
@@ -70,5 +73,26 @@
     int16_t mag_y;
     int16_t mag_z;
   } sensor_data_t;
+
+  typedef struct sensor_offset {
+    int16_t mag_bias_x;
+    int16_t mag_bias_y;
+    int16_t mag_bias_z;
+    int16_t mag_scale_x;
+    int16_t mag_scale_y;
+    int16_t mag_scale_z;
+    int16_t gyro_bias_x;
+    int16_t gyro_bias_y;
+    int16_t gyro_bias_z;
+    int16_t accel_bias_x;
+    int16_t accel_bias_y;
+    int16_t accel_bias_z;
+  } sensor_offset_t;
+
+  typedef struct sensor_calibration {
+    bool calibrating_accel;
+    bool calibrating_gyro;
+    bool calibrating_mag;
+  } sensor_calibration_t;
 
 #endif //__OTAROVER_IOCTL_H__

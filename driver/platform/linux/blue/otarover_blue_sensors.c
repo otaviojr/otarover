@@ -45,9 +45,19 @@ static int otarover_read_sensors(void* arg);
 
 static volatile bool should_read = false;
 
+static int16_t gyro_offset_x[2] = {0, 0};
+static int16_t gyro_offset_y[2] = {0, 0};
+static int16_t gyro_offset_z[2] = {0, 0};
+static int16_t gyro_bias[3] = {0, 0, 0};
+
+/* magnetometer calibration */
+static int16_t mag_max[3] = {-32760, -32760, -32760}, mag_min[3] = {32760, 32760, 32760};
 static uint8_t mag_sens[3] = {0,0,0};
 static int16_t mag_bias[3] = {0, 0, 0}, mag_scale[3] = {0, 0, 0};
 
+static bool calibrating_gyro = false;
+static bool calibrating_accel = false;
+static bool calibrating_mag = false;
 
 static struct i2c_board_info board_info_mpu9250[] =  {
   {
@@ -63,14 +73,19 @@ static struct i2c_board_info board_info_ak8963[] =  {
 
 static irq_handler_t otarover_imu_irq_handler(unsigned int irq, void *dev_id, struct pt_regs *regs);
 static short int otarover_sensors_update_temperature( void );
-static short int otarover_sensors_update_gyro( void );
-static short int otarover_sensors_update_accel( void );
-static short int otarover_sensors_update_mag( void );
-static short int otarover_sensor_read_mag(int16_t*, int16_t*, int16_t*);
 
-static int otarover_sensors_calibrate_gyro( void );
-static int otarover_sensors_calibrate_accel( void );
-static int otarover_sensors_calibrate_mag( void );
+static short int otarover_sensor_read_mag(int16_t*, int16_t*, int16_t*);
+static int otarover_sensors_write_gyro_bias( void );
+
+static short int otarover_sensors_update_accel(int16_t* real_accel_x, int16_t* real_accel_y, int16_t* real_accel_z);
+static short int otarover_sensors_update_gyro(int16_t* real_gyro_x, int16_t* real_gyro_y, int16_t* real_gyro_z);
+static short int otarover_sensors_update_mag(int16_t* real_mag_x, int16_t* real_mag_y, int16_t* real_mag_z);
+
+static int otarover_sensors_calibrate_gyro( int16_t real_gyro_x, int16_t real_gyro_y, int16_t real_gyro_z );
+static int otarover_sensors_calibrate_accel( int16_t real_accel_x,  int16_t real_accel_y, int16_t real_accel_z);
+
+static int otarover_sensors_calibrate_mag_init( void );
+static int otarover_sensors_calibrate_mag_offset(int16_t real_mag_x,  int16_t real_mag_y, int16_t real_mag_z);
 
 static sensor_data_t sensor_data;
 
@@ -133,9 +148,6 @@ int otarover_sensors_init()
 
   mdelay(10);
 
-  otarover_sensors_calibrate_gyro();
-  otarover_sensors_calibrate_accel();
-
   whoami = i2c_smbus_read_byte_data(i2c_ak8963_client, AK8963_REG_WHOAMI);
   if(whoami != AK8963_WHOAMI_VALUE){
     printk(KERN_ALERT "OTAROVER: Invalid AK8963 sensor signature (0x%x)", whoami);
@@ -146,7 +158,9 @@ int otarover_sensors_init()
 
   i2c_smbus_write_byte_data(i2c_ak8963_client, AK8963_REG_CNTL1, 0x00);
   mdelay(10);
-  otarover_sensors_calibrate_mag();
+
+  otarover_sensors_calibrate_mag_init();
+
   i2c_smbus_write_byte_data(i2c_ak8963_client, AK8963_REG_CNTL1, 0x00);
   mdelay(10);
   i2c_smbus_write_byte_data(i2c_ak8963_client, AK8963_REG_CNTL1, 0x01 << 4 | 0x06);
@@ -168,21 +182,37 @@ int otarover_sensors_init()
       return PTR_ERR(task);
    }
 
-
-  return 0;
+   return 0;
 }
 
 static int otarover_read_sensors(void* args)
 {
+  short int read_mag, read_accel, read_gyro;
+  int16_t real_mag_x, real_mag_y, real_mag_z;
+  int16_t real_gyro_x, real_gyro_y, real_gyro_z;
+  int16_t real_accel_x, real_accel_y, real_accel_z;
+
   printk(KERN_INFO "OTAROVER: Read Sensor thread has started running \n");
   while(!kthread_should_stop())
   {
     if(should_read == true) {
       set_current_state(TASK_RUNNING);
       otarover_sensors_update_temperature();
-      otarover_sensors_update_gyro();
-      otarover_sensors_update_accel();
-      otarover_sensors_update_mag();
+
+      read_accel = otarover_sensors_update_accel(&real_accel_x, &real_accel_y, &real_accel_z);
+      read_gyro = otarover_sensors_update_gyro(&real_gyro_x, &real_gyro_y, &real_gyro_z);
+      read_mag = otarover_sensors_update_mag(&real_mag_x, &real_mag_y, &real_mag_z);
+
+      if(calibrating_mag == true && read_mag == 0){
+        otarover_sensors_calibrate_mag_offset(real_mag_x, real_mag_y, real_mag_z);
+      }
+      if(calibrating_gyro == true && read_gyro == 0){
+        otarover_sensors_calibrate_gyro(real_gyro_x, real_gyro_y, real_gyro_z);
+      }
+      if(calibrating_accel == true && read_accel == 0){
+        otarover_sensors_calibrate_accel(real_accel_x, real_accel_y, real_accel_z);
+      }
+
       set_current_state(TASK_INTERRUPTIBLE);
       should_read = false;
     }
@@ -213,10 +243,45 @@ int otarover_sensors_end()
   return 0;
 }
 
-sensor_data_t* otarover_sensors_get_data( void )
+int otarover_sensors_set_calibration(sensor_calibration_t* data)
 {
-  return &sensor_data;
+  calibrating_accel = data->calibrating_accel;
+  calibrating_gyro = data->calibrating_gyro;
+  calibrating_mag = data->calibrating_mag;
+  return 0;
 }
+
+int otarover_sensors_get_calibration(sensor_calibration_t* data)
+{
+  data->calibrating_accel = calibrating_accel;
+  data->calibrating_gyro = calibrating_gyro;
+  data->calibrating_mag = calibrating_mag;
+  return 0;
+}
+
+int otarover_sensors_get_data( sensor_data_t* data )
+{
+  memcpy((void*)data,(void*)&sensor_data, sizeof(sensor_data_t));
+  return 0;
+}
+
+int otarover_sensors_get_offset(sensor_offset_t* data )
+{
+  data->mag_bias_x = mag_bias[0];
+  data->mag_bias_y = mag_bias[1];
+  data->mag_bias_z = mag_bias[2];
+  data->mag_scale_x = mag_scale[0];
+  data->mag_scale_y = mag_scale[1];
+  data->mag_scale_z = mag_scale[2];
+  data->gyro_bias_x = gyro_bias[0];
+  data->gyro_bias_y = gyro_bias[1];
+  data->gyro_bias_z = gyro_bias[2];
+  data->accel_bias_x = 0;
+  data->accel_bias_y = 0;
+  data->accel_bias_z = 0;
+  return 0;
+}
+
 
 static short int otarover_sensors_update_temperature()
 {
@@ -233,7 +298,7 @@ static short int otarover_sensors_update_temperature()
   return 0;
 }
 
-static short int otarover_sensors_update_gyro()
+static short int otarover_sensors_update_gyro(int16_t* real_gyro_x, int16_t* real_gyro_y, int16_t* real_gyro_z)
 {
   int16_t gyro_x;
   int16_t gyro_y;
@@ -255,6 +320,10 @@ static short int otarover_sensors_update_gyro()
   value = i2c_smbus_read_byte_data(i2c_mpu9250_client, MPU9250_REG_GYRO_ZOUT_L);
   gyro_z |= value;
 
+  if(real_gyro_x != NULL) *real_gyro_x =  gyro_x;
+  if(real_gyro_y != NULL) *real_gyro_y =  gyro_y;
+  if(real_gyro_z != NULL) *real_gyro_z =  gyro_z;
+
   sensor_data.gyro_x = gyro_x;
   sensor_data.gyro_y = gyro_y;
   sensor_data.gyro_z = gyro_z;
@@ -262,7 +331,7 @@ static short int otarover_sensors_update_gyro()
   return 0;
 }
 
-static short int otarover_sensors_update_accel()
+static short int otarover_sensors_update_accel(int16_t* real_accel_x, int16_t* real_accel_y, int16_t* real_accel_z)
 {
   int16_t accel_x;
   int16_t accel_y;
@@ -283,6 +352,10 @@ static short int otarover_sensors_update_accel()
   accel_z = ((int16_t)value<<8);
   value = i2c_smbus_read_byte_data(i2c_mpu9250_client, MPU9250_REG_ACCEL_ZOUT_L);
   accel_z |= (int16_t)value;
+
+  if(real_accel_x != NULL) *real_accel_x = accel_x;
+  if(real_accel_y != NULL) *real_accel_y = accel_y;
+  if(real_accel_z != NULL) *real_accel_z = accel_z;
 
   sensor_data.accel_x = accel_x;
   sensor_data.accel_y = accel_y;
@@ -316,79 +389,91 @@ static short int otarover_sensor_read_mag(int16_t* mag_x, int16_t* mag_y, int16_
   return -1;
 }
 
-static short int otarover_sensors_update_mag()
+static short int otarover_sensors_update_mag(int16_t* real_mag_x, int16_t* real_mag_y, int16_t* real_mag_z)
 {
+  uint32_t rad;
   int16_t mag_x, mag_y, mag_z;
   int32_t correction;
 
+  if(real_mag_x != NULL) *real_mag_x = 0;
+  if(real_mag_y != NULL) *real_mag_y = 0;
+  if(real_mag_z != NULL) *real_mag_z = 0;
+
   if(otarover_sensor_read_mag(&mag_x, &mag_y, &mag_z) == 0){
+
+    if(real_mag_x != NULL) *real_mag_x = mag_x;
+    if(real_mag_y != NULL) *real_mag_y = mag_y;
+    if(real_mag_z != NULL) *real_mag_z = mag_z;
+
+    rad = (mag_scale[0] + mag_scale[1] + mag_scale[2])/3;
+
     correction = ((mag_sens[0]-128) << 8);
     correction += (1<<16);
     correction *= 4912;
     correction /= 32760;
-    sensor_data.mag_x = (((mag_x-mag_bias[0]-mag_scale[0]) * correction) >> 16);
+    correction *= rad;
+    correction /= mag_scale[0];
+    correction >>= 1;
+    sensor_data.mag_x = (((mag_x-mag_bias[0]) * correction) >> 16);
     correction = (mag_sens[1]-128) << 8;
     correction += (1<<16);
     correction *= 4912;
     correction /= 32760;
-    sensor_data.mag_y = (((mag_y-mag_bias[1]-mag_scale[1]) * correction) >> 16);
+    correction *= rad;
+    correction /= mag_scale[1];
+    correction >>= 1;
+    sensor_data.mag_y = (((mag_y-mag_bias[1]) * correction) >> 16);
     correction = (mag_sens[2]-128) << 8;
     correction += (1<<16);
     correction *= 4912;
     correction /= 32760;
-    sensor_data.mag_z = (((mag_z-mag_bias[2]-mag_scale[2]) * correction) >> 16);;
+    correction *= rad;
+    correction /= mag_scale[2];
+    correction >>= 1;
+    sensor_data.mag_z = (((mag_z-mag_bias[2]) * correction) >> 16);
 
     return 0;
   }
   return -1;
 }
 
-static int otarover_sensors_calibrate_gyro( void )
+static int otarover_sensors_write_gyro_bias( void )
 {
-  int x;
-  int16_t gyro_x[2] = {0, 0};
-  int16_t gyro_y[2] = {0, 0};
-  int16_t gyro_z[2] = {0, 0};
+  i2c_smbus_write_byte_data(i2c_mpu9250_client, MPU9250_REG_X_OFFS_USER_H, (gyro_bias[0] >> 8)&0xFF);
+  i2c_smbus_write_byte_data(i2c_mpu9250_client, MPU9250_REG_X_OFFS_USER_L, gyro_bias[0]&0xFF);
+  i2c_smbus_write_byte_data(i2c_mpu9250_client, MPU9250_REG_Y_OFFS_USER_H, (gyro_bias[1] >> 8)&0xFF);
+  i2c_smbus_write_byte_data(i2c_mpu9250_client, MPU9250_REG_Y_OFFS_USER_L, gyro_bias[1]&0xFF);
+  i2c_smbus_write_byte_data(i2c_mpu9250_client, MPU9250_REG_Z_OFFS_USER_H, (gyro_bias[2] >> 8)&0xFF);
+  i2c_smbus_write_byte_data(i2c_mpu9250_client, MPU9250_REG_Z_OFFS_USER_L, gyro_bias[2]&0xFF);
+  return 0;
+}
 
-  int16_t gyro_x_bias, gyro_y_bias, gyro_z_bias;
+static int otarover_sensors_calibrate_gyro( int16_t real_gyro_x, int16_t real_gyro_y, int16_t real_gyro_z )
+{
+  if(real_gyro_x < gyro_offset_x[0] || gyro_offset_x[0] == 0) gyro_offset_x[0] = real_gyro_x;
+  if(real_gyro_x > gyro_offset_x[1] || gyro_offset_x[1] == 0) gyro_offset_x[1] = real_gyro_x;
+  if(real_gyro_y < gyro_offset_y[0] || gyro_offset_y[0] == 0) gyro_offset_y[0] = real_gyro_y;
+  if(real_gyro_y > gyro_offset_y[1] || gyro_offset_y[1] == 0) gyro_offset_y[1] = real_gyro_y;
+  if(real_gyro_z < gyro_offset_z[0] || gyro_offset_z[0] == 0) gyro_offset_z[0] = real_gyro_z;
+  if(real_gyro_z > gyro_offset_z[1] || gyro_offset_z[1] == 0) gyro_offset_z[1] = real_gyro_z;
 
-  for(x = 0; x < 30; x++){
-    otarover_sensors_update_gyro();
+  gyro_bias[0] = (gyro_offset_x[1] - gyro_offset_x[0]);
+  gyro_bias[1] = (gyro_offset_y[1] - gyro_offset_y[0]);
+  gyro_bias[2] = (gyro_offset_z[1] - gyro_offset_z[0]);
 
-    if(sensor_data.gyro_x < gyro_x[0] || gyro_x[0] == 0) gyro_x[0] = sensor_data.gyro_x;
-    if(sensor_data.gyro_x > gyro_x[1] || gyro_x[1] == 0) gyro_x[1] = sensor_data.gyro_x;
-    if(sensor_data.gyro_y < gyro_y[0] || gyro_y[0] == 0) gyro_y[0] = sensor_data.gyro_y;
-    if(sensor_data.gyro_y > gyro_y[1] || gyro_y[1] == 0) gyro_y[1] = sensor_data.gyro_y;
-    if(sensor_data.gyro_z < gyro_z[0] || gyro_z[0] == 0) gyro_z[0] = sensor_data.gyro_z;
-    if(sensor_data.gyro_z > gyro_z[1] || gyro_z[1] == 0) gyro_z[1] = sensor_data.gyro_z;
-  }
-
-  gyro_x_bias = (gyro_x[1] - gyro_x[0]);
-  gyro_y_bias = (gyro_y[1] - gyro_y[0]);
-  gyro_z_bias = (gyro_z[1] - gyro_z[0]);
-
-  i2c_smbus_write_byte_data(i2c_mpu9250_client, MPU9250_REG_X_OFFS_USER_H, (gyro_x_bias >> 8)&0xFF);
-  i2c_smbus_write_byte_data(i2c_mpu9250_client, MPU9250_REG_X_OFFS_USER_L, gyro_x_bias&0xFF);
-  i2c_smbus_write_byte_data(i2c_mpu9250_client, MPU9250_REG_Y_OFFS_USER_H, (gyro_y_bias >> 8)&0xFF);
-  i2c_smbus_write_byte_data(i2c_mpu9250_client, MPU9250_REG_Y_OFFS_USER_L, gyro_y_bias&0xFF);
-  i2c_smbus_write_byte_data(i2c_mpu9250_client, MPU9250_REG_Z_OFFS_USER_H, (gyro_z_bias >> 8)&0xFF);
-  i2c_smbus_write_byte_data(i2c_mpu9250_client, MPU9250_REG_Z_OFFS_USER_L, gyro_z_bias&0xFF);
+  otarover_sensors_write_gyro_bias();
 
   return 0;
 }
 
-static int otarover_sensors_calibrate_accel( void )
+static int otarover_sensors_calibrate_accel( int16_t real_accel_x,  int16_t real_accel_y, int16_t real_accel_z)
 {
   //TODO
   return 0;
 }
 
-static int otarover_sensors_calibrate_mag( void )
+static int otarover_sensors_calibrate_mag_init( void )
 {
-  uint16_t i = 0, sample_count = 0;
-  int16_t mag_x = 0, mag_y = 0, mag_z = 0;
-  int16_t mag_max[3] = {0x8008, 0x8008, 0x8008}, mag_min[3] = {0x7FF8, 0x7FF8, 0x7FF8};
-
   //Fuse ROM access mode
   i2c_smbus_write_byte_data(i2c_ak8963_client, AK8963_REG_CNTL1, 0x00);
   mdelay(10);
@@ -399,21 +484,18 @@ static int otarover_sensors_calibrate_mag( void )
   mag_sens[2] = i2c_smbus_read_byte_data(i2c_ak8963_client, AK8963_REG_ASAZ);
   i2c_smbus_write_byte_data(i2c_ak8963_client, AK8963_REG_CNTL1, 0x00);
   mdelay(10);
-  i2c_smbus_write_byte_data(i2c_ak8963_client, AK8963_REG_CNTL1, 0x01 << 4 | 0x06);
-  mdelay(10);
 
-  sample_count = 1500;
-  for(i = 0; i < sample_count; i++) {
-    if(otarover_sensor_read_mag(&mag_x, &mag_y, &mag_z) == 0){
-      if(mag_x > mag_max[0]) mag_max[0] = mag_x;
-      if(mag_x < mag_min[0]) mag_min[0] = mag_x;
-      if(mag_y > mag_max[1]) mag_max[1] = mag_y;
-      if(mag_y < mag_min[1]) mag_min[1] = mag_y;
-      if(mag_z > mag_max[2]) mag_max[2] = mag_z;
-      if(mag_z < mag_min[2]) mag_min[2] = mag_z;
-    }
-    mdelay(12); // at 100 Hz ODR, new mag data is available every 12 ms
-  }
+  return 0;
+}
+
+static int otarover_sensors_calibrate_mag_offset(int16_t real_mag_x,  int16_t real_mag_y, int16_t real_mag_z)
+{
+  if(real_mag_x > mag_max[0]) mag_max[0] = real_mag_x;
+  if(real_mag_x < mag_min[0]) mag_min[0] = real_mag_x;
+  if(real_mag_y > mag_max[1]) mag_max[1] = real_mag_y;
+  if(real_mag_y < mag_min[1]) mag_min[1] = real_mag_y;
+  if(real_mag_z > mag_max[2]) mag_max[2] = real_mag_z;
+  if(real_mag_z < mag_min[2]) mag_min[2] = real_mag_z;
 
   // Get hard iron correction
   mag_bias[0] = ((mag_max[0] + mag_min[0])/2); // get average x mag bias in counts
@@ -424,9 +506,6 @@ static int otarover_sensors_calibrate_mag( void )
   mag_scale[0] = (mag_max[0] - mag_min[0]); // get average x axis max chord length in counts
   mag_scale[1] = (mag_max[1] - mag_min[1]); // get average y axis max chord length in counts
   mag_scale[2] = (mag_max[2] - mag_min[2]); // get average z axis max chord length in counts
-
-  i2c_smbus_write_byte_data(i2c_ak8963_client, AK8963_REG_CNTL1, 0x00);
-  mdelay(10);
 
   return 0;
 }
