@@ -39,9 +39,10 @@ struct i2c_adapter* i2c_dev;
 struct i2c_client* i2c_mpu9250_client;
 struct i2c_client* i2c_ak8963_client;
 
+/* sensor readings */
+static sensor_data_t sensor_data;
 /* Read sensor task */
 static struct task_struct *task;
-static int otarover_read_sensors(void* arg);
 
 static volatile bool should_read = false;
 
@@ -71,23 +72,23 @@ static struct i2c_board_info board_info_ak8963[] =  {
   }
 };
 
+static int otarover_read_sensors(void* arg);
+
 static irq_handler_t otarover_imu_irq_handler(unsigned int irq, void *dev_id, struct pt_regs *regs);
 static short int otarover_sensors_update_temperature( void );
 
 static short int otarover_sensor_read_mag(int16_t*, int16_t*, int16_t*);
-static int otarover_sensors_write_gyro_bias( void );
+static short int otarover_sensors_write_gyro_bias( void );
 
 static short int otarover_sensors_update_accel(int16_t* real_accel_x, int16_t* real_accel_y, int16_t* real_accel_z);
 static short int otarover_sensors_update_gyro(int16_t* real_gyro_x, int16_t* real_gyro_y, int16_t* real_gyro_z);
 static short int otarover_sensors_update_mag(int16_t* real_mag_x, int16_t* real_mag_y, int16_t* real_mag_z);
 
-static int otarover_sensors_calibrate_gyro( int16_t real_gyro_x, int16_t real_gyro_y, int16_t real_gyro_z );
-static int otarover_sensors_calibrate_accel( int16_t real_accel_x,  int16_t real_accel_y, int16_t real_accel_z);
+static short int otarover_sensors_calibrate_gyro( int16_t real_gyro_x, int16_t real_gyro_y, int16_t real_gyro_z );
+static short int otarover_sensors_calibrate_accel( int16_t real_accel_x,  int16_t real_accel_y, int16_t real_accel_z);
 
-static int otarover_sensors_calibrate_mag_init( void );
-static int otarover_sensors_calibrate_mag_offset(int16_t real_mag_x,  int16_t real_mag_y, int16_t real_mag_z);
-
-static sensor_data_t sensor_data;
+static short int otarover_sensors_calibrate_mag_init( void );
+static short int otarover_sensors_calibrate_mag_offset(int16_t real_mag_x,  int16_t real_mag_y, int16_t real_mag_z);
 
 int otarover_sensors_init()
 {
@@ -146,8 +147,6 @@ int otarover_sensors_init()
   i2c_smbus_write_byte_data(i2c_mpu9250_client, MPU9250_REG_INT_PIN, 0x12);
   i2c_smbus_write_byte_data(i2c_mpu9250_client, MPU9250_REG_INT_EN, 0x01);
 
-  mdelay(10);
-
   whoami = i2c_smbus_read_byte_data(i2c_ak8963_client, AK8963_REG_WHOAMI);
   if(whoami != AK8963_WHOAMI_VALUE){
     printk(KERN_ALERT "OTAROVER: Invalid AK8963 sensor signature (0x%x)", whoami);
@@ -158,13 +157,10 @@ int otarover_sensors_init()
 
   i2c_smbus_write_byte_data(i2c_ak8963_client, AK8963_REG_CNTL1, 0x00);
   mdelay(10);
-
   otarover_sensors_calibrate_mag_init();
-
   i2c_smbus_write_byte_data(i2c_ak8963_client, AK8963_REG_CNTL1, 0x00);
   mdelay(10);
   i2c_smbus_write_byte_data(i2c_ak8963_client, AK8963_REG_CNTL1, 0x01 << 4 | 0x06);
-  mdelay(10);
 
   //IMU_INT - GPIO3_21 ((3*32)+21)
   irq_num = gpio_to_irq(117);
@@ -237,6 +233,8 @@ int otarover_sensors_end()
   irq_num = gpio_to_irq(117);
   free_irq(irq_num, NULL);
 
+  //TODO: turn off all sensors before exit
+
   i2c_unregister_device(i2c_mpu9250_client);
   i2c_unregister_device(i2c_ak8963_client);
   i2c_put_adapter(i2c_dev);
@@ -245,6 +243,8 @@ int otarover_sensors_end()
 
 int otarover_sensors_set_calibration(sensor_calibration_t* data)
 {
+  //TODO: clear old calibration data if the calibration process
+  //      is about to begin
   calibrating_accel = data->calibrating_accel;
   calibrating_gyro = data->calibrating_gyro;
   calibrating_mag = data->calibrating_mag;
@@ -453,7 +453,7 @@ static short int otarover_sensors_update_mag(int16_t* real_mag_x, int16_t* real_
   return -1;
 }
 
-static int otarover_sensors_write_gyro_bias( void )
+static short int otarover_sensors_write_gyro_bias( void )
 {
   i2c_smbus_write_byte_data(i2c_mpu9250_client, MPU9250_REG_X_OFFS_USER_H, (gyro_bias[0] >> 8)&0xFF);
   i2c_smbus_write_byte_data(i2c_mpu9250_client, MPU9250_REG_X_OFFS_USER_L, gyro_bias[0]&0xFF);
@@ -464,7 +464,7 @@ static int otarover_sensors_write_gyro_bias( void )
   return 0;
 }
 
-static int otarover_sensors_calibrate_gyro( int16_t real_gyro_x, int16_t real_gyro_y, int16_t real_gyro_z )
+static short int otarover_sensors_calibrate_gyro( int16_t real_gyro_x, int16_t real_gyro_y, int16_t real_gyro_z )
 {
   if(real_gyro_x < gyro_offset_x[0] || gyro_offset_x[0] == 0) gyro_offset_x[0] = real_gyro_x;
   if(real_gyro_x > gyro_offset_x[1] || gyro_offset_x[1] == 0) gyro_offset_x[1] = real_gyro_x;
@@ -482,13 +482,13 @@ static int otarover_sensors_calibrate_gyro( int16_t real_gyro_x, int16_t real_gy
   return 0;
 }
 
-static int otarover_sensors_calibrate_accel( int16_t real_accel_x,  int16_t real_accel_y, int16_t real_accel_z)
+static short int otarover_sensors_calibrate_accel( int16_t real_accel_x,  int16_t real_accel_y, int16_t real_accel_z)
 {
   //TODO
   return 0;
 }
 
-static int otarover_sensors_calibrate_mag_init( void )
+static short int otarover_sensors_calibrate_mag_init( void )
 {
   //Fuse ROM access mode
   i2c_smbus_write_byte_data(i2c_ak8963_client, AK8963_REG_CNTL1, 0x00);
@@ -504,7 +504,7 @@ static int otarover_sensors_calibrate_mag_init( void )
   return 0;
 }
 
-static int otarover_sensors_calibrate_mag_offset(int16_t real_mag_x,  int16_t real_mag_y, int16_t real_mag_z)
+static short int otarover_sensors_calibrate_mag_offset(int16_t real_mag_x,  int16_t real_mag_y, int16_t real_mag_z)
 {
   if(real_mag_x > mag_max[0]) mag_max[0] = real_mag_x;
   if(real_mag_x < mag_min[0]) mag_min[0] = real_mag_x;
